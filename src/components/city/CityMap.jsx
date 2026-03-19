@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react'
 import { Canvas } from '@react-three/fiber'
 import { OrbitControls, PerspectiveCamera } from '@react-three/drei'
+import * as THREE from 'three'
 import CityScene, { DISTRICT_CFG } from './CityScene'
 import { INSTRUMENTS, GAME_START_YEAR } from '../../data/stockData'
 import { getPrice } from '../../firebase/firestore'
@@ -12,7 +13,7 @@ function AreaTooltip({ area, unlocked }) {
     <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-white/96 border border-slate-200 rounded-xl px-5 py-3 pointer-events-none z-20 min-w-[220px] text-center shadow-lg">
       <div className="font-bold text-slate-800 text-sm">{cfg.icon} {cfg.label}</div>
       <div className="text-slate-500 text-xs mt-1">{cfg.description}</div>
-      {!unlocked && <div className="text-amber-600 text-xs mt-2 font-semibold">🔒 Complete quiz to unlock</div>}
+      {!unlocked && <div className="text-amber-600 text-xs mt-2 font-semibold">Complete quiz to unlock</div>}
       {unlocked  && <div className="text-green-600 text-xs mt-2 font-semibold">Click temple to open market</div>}
     </div>
   )
@@ -141,13 +142,22 @@ export default function CityMap({
         <OrbitControls
           target={[0, 2, 0]}
           minDistance={22}
-          maxDistance={160}
+          maxDistance={320}
           maxPolarAngle={Math.PI / 2.12}
           minPolarAngle={0.12}
           enableDamping
           dampingFactor={0.08}
           enablePan
-          panSpeed={1.2}
+          panSpeed={1.4}
+          mouseButtons={{
+            LEFT:   THREE.MOUSE.ROTATE,
+            MIDDLE: THREE.MOUSE.DOLLY,
+            RIGHT:  THREE.MOUSE.PAN,
+          }}
+          touches={{
+            ONE:  THREE.TOUCH.ROTATE,
+            TWO:  THREE.TOUCH.DOLLY_PAN,
+          }}
         />
         <CityScene
           unlockedAreas={unlockedAreas}
@@ -161,7 +171,7 @@ export default function CityMap({
           hovered={hovered}
           setHovered={setHovered}
           showLabels={showLabels}
-          showDistrictLabels={showDistrictLabels}
+          showDistrictLabels={showDistrictLabels && showLabels}
           assetManagerUnlocked={assetManagerUnlocked}
           fireDrillBurning={fireDrillBurning}
           fireDrillPhase={fireDrillPhase}
@@ -196,19 +206,19 @@ export default function CityMap({
             : 'bg-black/40 text-white border-white/30 hover:bg-black/60'
         }`}
       >
-        🏷️ {showDistrictLabels ? 'Hide Labels' : 'Show Labels'}
+        {showDistrictLabels ? 'Hide Labels' : 'Show Labels'}
       </button>
 
       {/* Placement mode banner */}
       {placingMonument && (
         <div className="absolute top-3 left-1/2 -translate-x-1/2 z-20 bg-amber-600/95 text-white text-sm font-bold px-5 py-2 rounded-xl border border-amber-400 shadow-lg pointer-events-none">
-          {placingMonument === 'eiffelTower' ? '🗼 Eiffel Tower' : '🕰️ Big Ben'} — Click a golden ring to place
+          {placingMonument === 'eiffelTower' ? 'Eiffel Tower' : placingMonument === 'bigBen' ? 'Big Ben' : 'Yacht'} — Click a golden ring to place
         </div>
       )}
 
       {/* Controls hint */}
       <div className="absolute bottom-14 right-3 z-20 text-xs text-slate-200 bg-black/40 rounded-lg px-2 py-1 pointer-events-none select-none">
-        🖱️ Left drag: rotate · Right drag: pan · Scroll: zoom · Click building for chart
+        Left drag: rotate · Right drag: pan · Scroll: zoom · Click building for chart
       </div>
     </div>
   )

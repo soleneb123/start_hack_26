@@ -2,54 +2,54 @@ import { useEffect, useState } from 'react'
 import { ASSET_ORDER } from '../../data/assetData'
 
 const DISTRICT_LABELS = {
-  bonds:         '🏛️ Bonds',
-  equityIndices: '🌐 Global Indices',
-  gold:          '⛏️ Gold',
-  smiStocks:     '🇨🇭 Swiss Stocks',
-  singleStocks:  '📈 Tech Stocks',
-  fx:            '⚓ FX / Currencies',
+  bonds:         'Bonds',
+  equityIndices: 'Indices',
+  gold:          'Gold',
+  smiStocks:     'Swiss',
+  singleStocks:  'Tech',
+  fx:            'FX',
 }
 
 function getFeedback(count, missingDistricts) {
   const missing = missingDistricts.map(d => DISTRICT_LABELS[d]).join(', ')
   if (count === 0) return {
-    icon: '💀', title: 'No Portfolio',
+    icon: null, title: 'No Portfolio',
     color: '#DC2626', bg: '#450a0a',
     msg: 'You have no investments yet. Start by learning in the Library and buying your first asset.',
     extra: null,
   }
   if (count === 1) return {
-    icon: '🔥', title: 'Total Wipeout',
+    icon: null, title: 'Total Wipeout',
     color: '#DC2626', bg: '#450a0a',
     msg: 'All capital in one market. When that sector burns, you lose everything. Spread across at least 3 markets.',
     extra: `Missing: ${missing}`,
   }
   if (count === 2) return {
-    icon: '🔥', title: 'Severe Damage',
+    icon: null, title: 'Severe Damage',
     color: '#EA580C', bg: '#431407',
     msg: 'Two markets is not enough. A correlated crash wipes out most of your portfolio.',
     extra: `Add: ${missing}`,
   }
   if (count === 3) return {
-    icon: '⚠️', title: 'Significant Damage',
+    icon: null, title: 'Significant Damage',
     color: '#F59E0B', bg: '#422006',
     msg: 'Decent start, but 3 markets leaves you vulnerable. Bonds and Gold are great safe havens to add.',
     extra: `Consider adding: ${missing}`,
   }
   if (count === 4) return {
-    icon: '⚠️', title: 'Moderate Damage',
+    icon: null, title: 'Moderate Damage',
     color: '#F59E0B', bg: '#422006',
     msg: 'Good diversification! A few small fires but mostly under control. One or two more markets seals the deal.',
     extra: `You could still add: ${missing}`,
   }
   if (count === 5) return {
-    icon: '🛡️', title: 'Minor Damage',
+    icon: null, title: 'Minor Damage',
     color: '#22C55E', bg: '#052e16',
     msg: 'Strong portfolio. Firefighters contained almost every fire. Just one more market for full protection.',
     extra: `Last missing: ${missing}`,
   }
   return {
-    icon: '🏆', title: 'City Saved!',
+    icon: null, title: 'City Saved!',
     color: '#22C55E', bg: '#052e16',
     msg: 'Perfect diversification across all 6 markets. Your firefighters contained every fire. Textbook risk management!',
     extra: null,
@@ -97,10 +97,9 @@ export default function FireDrillModal({ fireDrill, onClose }) {
         borderBottom: '1px solid #1e293b',
         background: phase === 'result' ? feedback.bg + 'cc' : '#1e293bcc',
       }}>
-        <span style={{ fontSize: 20 }}>{phase === 'result' ? feedback.icon : '🚒'}</span>
         <div style={{ flex: 1 }}>
           <div style={{ color: 'white', fontWeight: 800, fontSize: 13 }}>
-            {phase === 'running' ? '🔥 Fire Emergency' : feedback.title}
+            {phase === 'running' ? 'Fire Emergency' : feedback.title}
           </div>
           <div style={{ color: '#94a3b8', fontSize: 10 }}>
             {phase === 'running' ? 'Fire spreading through city…' : 'Risk assessment complete'}
@@ -130,7 +129,6 @@ export default function FireDrillModal({ fireDrill, onClose }) {
 
           {/* Fire count */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#1e293b', borderRadius: 10, padding: '8px 12px' }}>
-            <span style={{ fontSize: 22 }}>🔥</span>
             <div>
               <div style={{ color: '#fb923c', fontWeight: 800, fontSize: 18 }}>{burning.size}</div>
               <div style={{ color: '#94a3b8', fontSize: 10 }}>building{burning.size !== 1 ? 's' : ''} on fire</div>
@@ -143,8 +141,8 @@ export default function FireDrillModal({ fireDrill, onClose }) {
               const has = !missingDistricts.includes(id)
               return (
                 <div key={id} style={{ textAlign: 'center', opacity: has ? 1 : 0.35 }}>
-                  <div style={{ fontSize: 15 }}>{DISTRICT_LABELS[id].split(' ')[0]}</div>
-                  <div style={{ fontSize: 9, color: has ? '#4ade80' : '#f87171', marginTop: 2 }}>{has ? '✓' : '✗'}</div>
+                  <div style={{ fontSize: 9, color: '#94a3b8', fontWeight: 600 }}>{DISTRICT_LABELS[id]}</div>
+                  <div style={{ fontSize: 9, color: has ? '#4ade80' : '#f87171', marginTop: 2 }}>{has ? 'Y' : 'N'}</div>
                 </div>
               )
             })}
@@ -177,13 +175,13 @@ export default function FireDrillModal({ fireDrill, onClose }) {
           }}>
             <div style={{ fontWeight: 700, fontSize: 11, color: feedback.color, marginBottom: 4 }}>
               {burning.size > 0
-                ? `🔥 ${burning.size} holding${burning.size !== 1 ? 's' : ''} lost`
-                : '✅ Fully diversified — all assets protected'}
+                ? `${burning.size} holding${burning.size !== 1 ? 's' : ''} lost`
+                : 'Fully diversified — all assets protected'}
             </div>
             <p style={{ color: '#cbd5e1', fontSize: 11, lineHeight: 1.5, margin: 0 }}>{feedback.msg}</p>
             {burning.size > 0 && (
               <div style={{ marginTop: 6, fontSize: 10, color: '#fca5a5', borderTop: '1px solid #7f1d1d55', paddingTop: 6, fontWeight: 600 }}>
-                ⚠️ Those positions were sold at market value.
+                Those positions were sold at market value.
               </div>
             )}
             {feedback.extra && (
@@ -203,7 +201,7 @@ export default function FireDrillModal({ fireDrill, onClose }) {
                   border: `1px solid ${invested ? '#15803d88' : '#991b1b88'}`,
                   background: invested ? '#052e1644' : '#450a0a44',
                 }}>
-                  <div style={{ fontSize: 13, opacity: invested ? 1 : 0.4 }}>{DISTRICT_LABELS[id].split(' ')[0]}</div>
+                  <div style={{ fontSize: 9, color: '#94a3b8', fontWeight: 600, opacity: invested ? 1 : 0.4 }}>{DISTRICT_LABELS[id]}</div>
                   <div style={{ fontSize: 8, fontWeight: 700, color: invested ? '#4ade80' : '#f87171', marginTop: 2 }}>
                     {invested ? 'Safe' : 'Burnt'}
                   </div>

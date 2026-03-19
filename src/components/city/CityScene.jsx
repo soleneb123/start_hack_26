@@ -544,8 +544,8 @@ function AnimatedBuilding({ districtId, targetH, shade, isCrisis, isBurning, isC
       </ShakeGroup>
 
       {/* Company name — vertical text beside the skyscraper */}
-      {!isBurning && instId && INSTRUMENTS[instId] && (
-        <Html position={[fp / 2 + 0.6, PARTS_H * 0.5, 0]} center distanceFactor={7}>
+      {showLabels && !isBurning && instId && INSTRUMENTS[instId] && (
+        <Html position={[fp / 2 + 0.6, PARTS_H * 0.5, 0]} center distanceFactor={55}>
           <div style={{
             writingMode: 'vertical-rl',
             textOrientation: 'mixed',
@@ -566,13 +566,13 @@ function AnimatedBuilding({ districtId, targetH, shade, isCrisis, isBurning, isC
       )}
 
       {showLabels && !isBurning && returnPct !== null && (
-        <Html position={[0, PARTS_H + 0.6, 0]} center distanceFactor={6}>
+        <Html position={[0, PARTS_H + 0.6, 0]} center distanceFactor={22}>
           <div style={{
             background: '#0f172AEE', color: labelColor,
-            padding: '7px 18px', borderRadius: 10, fontSize: 38,
-            fontWeight: 900, whiteSpace: 'nowrap', pointerEvents: 'none',
-            border: `2px solid ${labelColor}77`, letterSpacing: '0.02em',
-            textShadow: `0 0 12px ${labelColor}99`,
+            padding: '4px 10px', borderRadius: 8, fontSize: 22,
+            fontWeight: 800, whiteSpace: 'nowrap', pointerEvents: 'none',
+            border: `1.5px solid ${labelColor}77`,
+            textShadow: `0 0 8px ${labelColor}99`,
           }}>
             {returnPct >= 0 ? '+' : ''}{returnPct.toFixed(1)}%
           </div>
@@ -664,13 +664,13 @@ function HouseBuilding({ color, holdingValue, returnPct, showLabels, onClick, on
       </mesh>
 
       {showLabels && returnPct !== null && (
-        <Html position={[0, wallH + 2.2 * s, 0]} center distanceFactor={6}>
+        <Html position={[0, wallH + 2.2 * s, 0]} center distanceFactor={22}>
           <div style={{
             background: '#0f172AEE', color: labelColor,
-            padding: '7px 18px', borderRadius: 10, fontSize: 38,
-            fontWeight: 900, whiteSpace: 'nowrap', pointerEvents: 'none',
-            border: `2px solid ${labelColor}77`,
-            textShadow: `0 0 12px ${labelColor}99`,
+            padding: '4px 10px', borderRadius: 8, fontSize: 22,
+            fontWeight: 800, whiteSpace: 'nowrap', pointerEvents: 'none',
+            border: `1.5px solid ${labelColor}77`,
+            textShadow: `0 0 8px ${labelColor}99`,
           }}>
             {returnPct >= 0 ? '+' : ''}{returnPct.toFixed(1)}%
           </div>
@@ -714,40 +714,76 @@ function MiniHouse({ color, onClick, onHover, onHoverEnd }) {
   )
 }
 
-// ── ETF cluster — renders a grid of mini houses ───────────────────────────────
-function ETFCluster({ districtColor, holdingValue, returnPct, showLabels, onClick, onHover, onHoverEnd }) {
-  // More houses = bigger investment
-  const numHouses = Math.min(9, Math.max(2, holdingValue >= 5000 ? 9 : holdingValue >= 2000 ? 6 : holdingValue >= 750 ? 4 : 2))
-  const cols = numHouses > 6 ? 3 : 2
-  const rows = Math.ceil(numHouses / cols)
-  const GAP  = 3.8  // spaced for the new larger house size (2.8 wide + 1.0 gap)
-  const positions = []
+// ── Manhattan thin-tower cluster — for ETF / index fund holdings ─────────────
+function ThinSkyscraperCluster({ districtColor, baseH, returnPct, showLabels, onClick, onHover, onHoverEnd }) {
+  const TW  = 1.0   // tower footprint width
+  const GAP = 0.55  // street gap between towers
+
+  // Grid config: [cols, rows] based on height (= return)
+  const [cols, rows] = baseH >= 28 ? [3, 3] : baseH >= 16 ? [3, 2] : baseH >= 8 ? [2, 2] : [2, 1]
+  const step = TW + GAP
+  const labelColor = returnPct >= 0 ? '#4ade80' : '#f87171'
+
+  // Build towers with deterministic height variation — tallest near center
+  const towers = []
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) {
-      if (positions.length >= numHouses) break
-      positions.push([
-        (c - (cols - 1) / 2) * GAP,
-        (r - (rows - 1) / 2) * GAP,
-      ])
+      const idx = r * cols + c
+      const cx = Math.abs(c - (cols - 1) / 2) / Math.max(1, (cols - 1) / 2)
+      const cz = Math.abs(r - (rows - 1) / 2) / Math.max(1, (rows - 1) / 2)
+      const centrality = 1 - (cx + cz) / 2
+      const rnd = ((idx * 11 + 7) % 9) / 22   // 0–0.4 pseudo-random
+      const h = Math.max(2, baseH * (0.55 + centrality * 0.35 + rnd))
+      towers.push({
+        x: (c - (cols - 1) / 2) * step,
+        z: (r - (rows - 1) / 2) * step,
+        h,
+        shade: idx % 3,
+      })
     }
   }
-  const labelColor = returnPct >= 0 ? '#4ade80' : '#f87171'
+  const maxH = Math.max(...towers.map(t => t.h))
 
   return (
     <group>
-      {positions.map(([px, pz], i) => (
-        <group key={i} position={[px, 0, pz]}>
-          <MiniHouse color={districtColor} onClick={onClick} onHover={onHover} onHoverEnd={onHoverEnd} />
-        </group>
-      ))}
+      {towers.map((t, i) => {
+        const body = shadeColor(districtColor, 0.50 + t.shade * 0.14)
+        return (
+          <group key={i} position={[t.x, 0, t.z]}>
+            {/* Slim tower body */}
+            <mesh position={[0, t.h / 2, 0]} castShadow receiveShadow
+              onClick={onClick} onPointerOver={onHover} onPointerOut={onHoverEnd}>
+              <boxGeometry args={[TW, t.h, TW]} />
+              <meshPhongMaterial color={body} shininess={60} />
+            </mesh>
+            {/* Glass curtain front face */}
+            <mesh position={[0, t.h / 2, TW / 2 + 0.03]}>
+              <boxGeometry args={[TW * 0.72, t.h * 0.94, 0.04]} />
+              <meshPhongMaterial color="#93C5FD" shininess={130} transparent opacity={0.48} />
+            </mesh>
+            {/* Floor bands every ~2.5 units */}
+            {Array.from({ length: Math.floor(t.h / 2.5) }, (_, bi) => (
+              <mesh key={bi} position={[0, (bi + 1) * 2.5, 0]}>
+                <boxGeometry args={[TW + 0.05, 0.07, TW + 0.05]} />
+                <meshPhongMaterial color={districtColor} shininess={70} />
+              </mesh>
+            ))}
+            {/* Rooftop cap */}
+            <mesh position={[0, t.h + 0.07, 0]}>
+              <boxGeometry args={[TW + 0.08, 0.14, TW + 0.08]} />
+              <meshPhongMaterial color={districtColor} shininess={90} />
+            </mesh>
+          </group>
+        )
+      })}
       {showLabels && returnPct !== null && (
-        <Html position={[0, 5.0, 0]} center distanceFactor={6}>
+        <Html position={[0, maxH + 1.2, 0]} center distanceFactor={22}>
           <div style={{
             background: '#0f172AEE', color: labelColor,
-            padding: '7px 18px', borderRadius: 10, fontSize: 38,
-            fontWeight: 900, whiteSpace: 'nowrap', pointerEvents: 'none',
-            border: `2px solid ${labelColor}77`,
-            textShadow: `0 0 12px ${labelColor}99`,
+            padding: '4px 10px', borderRadius: 8, fontSize: 22,
+            fontWeight: 800, whiteSpace: 'nowrap', pointerEvents: 'none',
+            border: `1.5px solid ${labelColor}77`,
+            textShadow: `0 0 8px ${labelColor}99`,
           }}>
             {returnPct >= 0 ? '+' : ''}{returnPct.toFixed(1)}%
           </div>
@@ -871,9 +907,9 @@ function Neighbourhood({ id, portfolio, currentYear, unlockedAreas, onClick, onH
               /* Rubble after burn */
               <Rubble size={valueToScale(value)} />
             ) : isETF ? (
-              <ETFCluster
+              <ThinSkyscraperCluster
                 districtColor={distColor}
-                holdingValue={value}
+                baseH={bldgH}
                 returnPct={returnPct}
                 showLabels={showLabels && !isBurning}
                 onClick={clickHandler}
@@ -911,7 +947,7 @@ function Neighbourhood({ id, portfolio, currentYear, unlockedAreas, onClick, onH
             {/* Fire on burning buildings (running phase) + per-building firefighters */}
             {(isCrisis || (isBurning && !isCollapsed)) && (
               <>
-                <Fire position={[0, isETF ? 3.5 : isHouse ? 3.8 : bldgH * 0.75, 0]} />
+                <Fire position={[0, isETF ? 8 : isHouse ? 3.8 : bldgH * 0.75, 0]} />
                 {/* Extra flames at base for drama */}
                 <Fire position={[-1.0, 0.4, 0.8]} />
                 <Fire position={[ 0.8, 0.4, -0.6]} />
@@ -932,27 +968,26 @@ function Neighbourhood({ id, portfolio, currentYear, unlockedAreas, onClick, onH
         )
       })}
 
-      {/* Small label (always shown when showLabels) */}
-      {showLabels && (
-        <Html position={[0, exchangeH + 2.8, 0]} center distanceFactor={18} occlude={false}>
+      {/* Small label — always show when showLabels is on and large label isn't active */}
+      {showLabels && !showDistrictLabels && (
+        <Html position={[0, exchangeH + 2.0, 0]} center distanceFactor={38} occlude={false}>
           <div style={{
-            background: unlocked ? `${cfg.color}E0` : '#374151E0',
-            color: 'white', padding: '5px 13px', borderRadius: 8,
-            fontSize: 18, fontWeight: 700, whiteSpace: 'nowrap',
+            background: unlocked ? `${cfg.color}CC` : '#374151CC',
+            color: 'white', padding: '3px 9px', borderRadius: 7,
+            fontSize: 13, fontWeight: 700, whiteSpace: 'nowrap',
             pointerEvents: 'none',
-            border: `1px solid ${unlocked ? cfg.color : '#6B7280'}AA`,
-            boxShadow: isHovered ? `0 0 10px ${cfg.color}99` : 'none',
+            border: `1px solid ${unlocked ? cfg.color : '#6B7280'}88`,
           }}>
             {cfg.icon} {cfg.label}
             {!unlocked && ' 🔒'}
-            {holdings.length > 0 && ` · ${holdings.length} holding${holdings.length > 1 ? 's' : ''}`}
+            {holdings.length > 0 && ` · ${holdings.length}`}
           </div>
         </Html>
       )}
 
       {/* Large district label toggle */}
       {showDistrictLabels && (
-        <Html position={[0, 17, 0]} center distanceFactor={14} occlude={false}>
+        <Html position={[0, 17, 0]} center distanceFactor={75} occlude={false}>
           <div style={{
             background: unlocked ? `${cfg.color}F2` : '#374151F2',
             color: 'white',
@@ -967,7 +1002,6 @@ function Neighbourhood({ id, portfolio, currentYear, unlockedAreas, onClick, onH
             minWidth: 180,
           }}>
             <div style={{ fontSize: 26, lineHeight: 1.2 }}>{cfg.icon} {cfg.label}</div>
-            <div style={{ fontSize: 13, fontWeight: 500, opacity: 0.85, marginTop: 5 }}>{cfg.description}</div>
             {!unlocked && <div style={{ fontSize: 11, color: '#FBBF24', marginTop: 4 }}>🔒 Locked</div>}
           </div>
         </Html>
@@ -977,88 +1011,84 @@ function Neighbourhood({ id, portfolio, currentYear, unlockedAreas, onClick, onH
 }
 
 // ── City road grid ────────────────────────────────────────────────────────────
-function CityRoads() {
-  const len  = PLATFORM_HALF * 2 + 1
-  const rw   = 2.5
-  const y    = 0.015
-  const road = '#2A2A2A'
-  const curb = '#4A4A4A'
+// ── Organic paths — hand-crafted winding routes between districts ─────────────
+// Each path is an array of [x, z] waypoints; segments rendered between pairs.
+const ORGANIC_PATHS = [
+  // top row
+  [[-34,-30],[0,-30]],
+  [[0,-30],[34,-30]],
+  // left & right columns
+  [[-34,-30],[-34,6]],
+  [[34,-30],[34,6]],
+  // centre spine
+  [[0,-30],[0,-1]],
+  [[0,-1],[0,30]],
+  // diagonals to harbour
+  [[-34,6],[0,30]],
+  [[34,6],[0,30]],
+  // smiStocks ↔ museum
+  [[-34,6],[-22,22]],
+  // assetManager ↔ singleStocks
+  [[22,22],[34,6]],
+  // HQ ↔ academy
+  [[0,-1],[12,-2]],
+  // museum ↔ assetManager
+  [[-22,22],[22,22]],
+]
 
-  // Major road X positions and Z positions
-  const vX = [-11, 11]      // vertical roads (run along Z)
-  const hZ = [-10,  10]     // horizontal roads (run along X)
-  // Also ring road along platform edges
-  const edgeOffset = PLATFORM_HALF - 1.5
+function OrganicPaths() {
+  const y       = 0.018
+  const rw      = 1.6
+  const dashLen = 1.0   // white dash length
+  const gapLen  = 1.0   // gap between dashes
+  const period  = dashLen + gapLen
 
   return (
     <group>
-      {/* Horizontal roads */}
-      {hZ.map(rz => (
-        <group key={`h${rz}`}>
-          <mesh position={[0, y, rz]}>
-            <boxGeometry args={[len, 0.03, rw]} />
-            <meshLambertMaterial color={road} />
-          </mesh>
-          {/* Curb lines */}
-          <mesh position={[0, y + 0.005, rz - rw/2]}>
-            <boxGeometry args={[len, 0.01, 0.18]} />
-            <meshLambertMaterial color={curb} />
-          </mesh>
-          <mesh position={[0, y + 0.005, rz + rw/2]}>
-            <boxGeometry args={[len, 0.01, 0.18]} />
-            <meshLambertMaterial color={curb} />
-          </mesh>
-        </group>
-      ))}
+      {ORGANIC_PATHS.map((path, pi) =>
+        path.slice(1).map((end, si) => {
+          const [x1, z1] = path[si]
+          const [x2, z2] = end
+          const mx  = (x1 + x2) / 2
+          const mz  = (z1 + z2) / 2
+          const dx  = x2 - x1
+          const dz  = z2 - z1
+          const len = Math.sqrt(dx * dx + dz * dz)
+          const ang = Math.atan2(dx, dz)
 
-      {/* Vertical roads */}
-      {vX.map(rx => (
-        <group key={`v${rx}`}>
-          <mesh position={[rx, y, 0]}>
-            <boxGeometry args={[rw, 0.03, len]} />
-            <meshLambertMaterial color={road} />
-          </mesh>
-          <mesh position={[rx - rw/2, y + 0.005, 0]}>
-            <boxGeometry args={[0.18, 0.01, len]} />
-            <meshLambertMaterial color={curb} />
-          </mesh>
-          <mesh position={[rx + rw/2, y + 0.005, 0]}>
-            <boxGeometry args={[0.18, 0.01, len]} />
-            <meshLambertMaterial color={curb} />
-          </mesh>
-        </group>
-      ))}
+          // Build white dash positions along the road centre
+          const dashes = []
+          const count  = Math.floor(len / period)
+          const offset = -(count * period) / 2 + dashLen / 2
+          for (let d = 0; d < count; d++) {
+            dashes.push(offset + d * period)
+          }
 
-      {/* Edge/ring roads */}
-      <mesh position={[0, y, -edgeOffset]}>
-        <boxGeometry args={[len, 0.03, rw * 0.8]} />
-        <meshLambertMaterial color={road} />
-      </mesh>
-      <mesh position={[0, y, edgeOffset]}>
-        <boxGeometry args={[len, 0.03, rw * 0.8]} />
-        <meshLambertMaterial color={road} />
-      </mesh>
-      <mesh position={[-edgeOffset, y, 0]}>
-        <boxGeometry args={[rw * 0.8, 0.03, len]} />
-        <meshLambertMaterial color={road} />
-      </mesh>
-      <mesh position={[edgeOffset, y, 0]}>
-        <boxGeometry args={[rw * 0.8, 0.03, len]} />
-        <meshLambertMaterial color={road} />
-      </mesh>
-
-      {/* Rounded intersection discs (replace sharp corners) */}
-      {vX.flatMap(rx => hZ.map(rz => (
-        <mesh key={`int${rx}${rz}`} position={[rx, y + 0.003, rz]} rotation={[-Math.PI / 2, 0, 0]}>
-          <circleGeometry args={[rw * 0.72, 20]} />
-          <meshLambertMaterial color="#1A1A1A" />
-        </mesh>
-      )))}
+          return (
+            <group key={`${pi}-${si}`}>
+              {/* Road surface */}
+              <mesh position={[mx, y, mz]} rotation={[0, ang, 0]}>
+                <boxGeometry args={[rw, 0.03, len + 0.1]} />
+                <meshLambertMaterial color="#1a1a1a" />
+              </mesh>
+              {/* White dashed centre line — placed in a rotated group so Z = along road */}
+              <group position={[mx, y + 0.01, mz]} rotation={[0, ang, 0]}>
+                {dashes.map((off, di) => (
+                  <mesh key={di} position={[0, 0, off]}>
+                    <boxGeometry args={[0.1, 0.008, dashLen]} />
+                    <meshBasicMaterial color="#ffffff" />
+                  </mesh>
+                ))}
+              </group>
+            </group>
+          )
+        })
+      )}
     </group>
   )
 }
 
-// ── Quiz Academy ─────────────────────────────────────────────────────────────
+// ── Library ───────────────────────────────────────────────────────────────────
 function QuizAcademy({ onClick, onHover, isHovered, showLabels }) {
   const brick  = isHovered ? '#C8783A' : '#A0522D'
   const roof   = '#5C3317'
@@ -1163,7 +1193,7 @@ function QuizAcademy({ onClick, onHover, isHovered, showLabels }) {
 
       {/* Label */}
       {showLabels && (
-        <Html position={[0, 13, 0]} center distanceFactor={22}>
+        <Html position={[0, 13, 0]} center distanceFactor={85}>
           <div style={{
             background: isHovered ? '#A0522DEE' : '#5C3317EE',
             color: 'white', padding: '4px 11px', borderRadius: 8,
@@ -1171,7 +1201,7 @@ function QuizAcademy({ onClick, onHover, isHovered, showLabels }) {
             pointerEvents: 'none', border: '1px solid #C9A84C88',
             boxShadow: isHovered ? '0 0 10px #C9A84C88' : 'none',
           }}>
-            🎓 Quiz Academy
+            Library
           </div>
         </Html>
       )}
@@ -1259,33 +1289,21 @@ function PostFinanceHQ({ onClick, onHover, isHovered, showLabels }) {
         <meshPhongMaterial color={yDark} shininess={80} />
       </mesh>
 
-      {/* "PostFinance" sign on front face — large yellow text on dark panel */}
-      <Html position={[0, mainH * 0.52, 2.60]} center distanceFactor={14}>
-        <div style={{
-          color: yellow,
-          fontWeight: 900,
-          fontSize: 18,
-          letterSpacing: '0.12em',
-          whiteSpace: 'nowrap',
-          pointerEvents: 'none',
-          textShadow: `0 0 8px ${yellow}CC, 0 2px 4px #000`,
-          fontFamily: 'Arial Black, sans-serif',
-          textTransform: 'uppercase',
-        }}>
-          PostFinance
-        </div>
-      </Html>
-
-      {/* Hover label */}
+      {/* "PostFinance" sign on front face — only when labels are visible */}
       {showLabels && (
-        <Html position={[0, mainH + 7, 0]} center distanceFactor={22}>
+        <Html position={[0, mainH * 0.52, 2.60]} center distanceFactor={75}>
           <div style={{
-            background: '#C9A000EE', color: '#1a1a1a', padding: '4px 11px',
-            borderRadius: 8, fontSize: 14, fontWeight: 800, whiteSpace: 'nowrap',
-            pointerEvents: 'none', border: '1px solid #FFD00088',
-            boxShadow: isHovered ? `0 0 14px ${yellow}88` : 'none',
+            color: yellow,
+            fontWeight: 900,
+            fontSize: 18,
+            letterSpacing: '0.12em',
+            whiteSpace: 'nowrap',
+            pointerEvents: 'none',
+            textShadow: `0 0 8px ${yellow}CC, 0 2px 4px #000`,
+            fontFamily: 'Arial Black, sans-serif',
+            textTransform: 'uppercase',
           }}>
-            🏦 PostFinance HQ
+            PostFinance HQ
           </div>
         </Html>
       )}
@@ -1458,6 +1476,83 @@ function BigBen({ position = [0, 0, 0] }) {
   )
 }
 
+// ── Yacht monument ────────────────────────────────────────────────────────────
+function Yacht({ position = [0, 0, 0] }) {
+  const hullRef = useRef()
+  useFrame(({ clock }) => {
+    if (hullRef.current) {
+      const t = clock.getElapsedTime()
+      hullRef.current.rotation.z = Math.sin(t * 0.8) * 0.03
+      hullRef.current.position.y = Math.sin(t * 1.1) * 0.18
+    }
+  })
+  return (
+    <group position={position}>
+      <mesh position={[0, -0.12, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <circleGeometry args={[5.5, 24]} />
+        <meshPhongMaterial color="#1B6FA8" shininess={60} transparent opacity={0.7} />
+      </mesh>
+      <group ref={hullRef}>
+        <mesh position={[0, 0.28, 0]} castShadow>
+          <boxGeometry args={[7.0, 0.56, 2.2]} />
+          <meshPhongMaterial color="#F0F0F0" shininess={40} />
+        </mesh>
+        <mesh position={[0, -0.08, 0]} castShadow>
+          <boxGeometry args={[7.0, 0.22, 2.2]} />
+          <meshPhongMaterial color="#1C3B5A" shininess={20} />
+        </mesh>
+        <mesh position={[3.2, 0.22, 0]} rotation={[0, 0.44, 0]} castShadow>
+          <boxGeometry args={[1.2, 0.50, 2.0]} />
+          <meshPhongMaterial color="#F0F0F0" shininess={40} />
+        </mesh>
+        <mesh position={[0, 0.58, 0]} castShadow>
+          <boxGeometry args={[6.6, 0.12, 2.0]} />
+          <meshPhongMaterial color="#D4AA70" shininess={15} />
+        </mesh>
+        <mesh position={[-1.0, 1.10, 0]} castShadow>
+          <boxGeometry args={[2.8, 0.96, 1.8]} />
+          <meshPhongMaterial color="#F5F5F5" shininess={30} />
+        </mesh>
+        <mesh position={[-1.0, 1.62, 0]} castShadow>
+          <boxGeometry args={[2.9, 0.16, 1.9]} />
+          <meshPhongMaterial color="#1C3B5A" shininess={20} />
+        </mesh>
+        {[-0.4, 0.6].map((x, i) => (
+          <mesh key={i} position={[x, 1.10, 0.92]}>
+            <boxGeometry args={[0.65, 0.42, 0.06]} />
+            <meshPhongMaterial color="#87CEEB" shininess={100} transparent opacity={0.8} />
+          </mesh>
+        ))}
+        {/* Mast */}
+        <mesh position={[1.4, 4.5, 0]} castShadow>
+          <cylinderGeometry args={[0.08, 0.10, 8.0, 7]} />
+          <meshPhongMaterial color="#C0C0C0" shininess={60} />
+        </mesh>
+        {/* Main sail */}
+        <mesh position={[0.2, 4.6, 0]} castShadow>
+          <boxGeometry args={[2.6, 6.8, 0.04]} />
+          <meshPhongMaterial color="white" shininess={10} transparent opacity={0.92} />
+        </mesh>
+        {/* Boom */}
+        <mesh position={[0.4, 1.3, 0]} rotation={[0, 0, Math.PI / 2]} castShadow>
+          <cylinderGeometry args={[0.055, 0.055, 3.0, 6]} />
+          <meshPhongMaterial color="#C0C0C0" shininess={40} />
+        </mesh>
+        {/* Red stripe */}
+        <mesh position={[0, 0.12, 1.12]}>
+          <boxGeometry args={[6.8, 0.14, 0.04]} />
+          <meshPhongMaterial color="#DC2626" shininess={30} />
+        </mesh>
+        {/* Yellow flag */}
+        <mesh position={[1.8, 8.7, 0]} rotation={[0, 0, 0.3]}>
+          <boxGeometry args={[0.7, 0.4, 0.04]} />
+          <meshPhongMaterial color="#FFD000" shininess={20} />
+        </mesh>
+      </group>
+    </group>
+  )
+}
+
 // ── Monument placement spot (animated golden ring) ────────────────────────────
 function PlacementSpot({ position, onPlace }) {
   const ringRef = useRef()
@@ -1471,12 +1566,18 @@ function PlacementSpot({ position, onPlace }) {
 
   return (
     <group position={position}>
+      {/* Large invisible hit area — easy to click */}
+      <mesh
+        position={[0, 0.1, 0]} rotation={[-Math.PI / 2, 0, 0]}
+        onClick={(e) => { e.stopPropagation(); onPlace(position) }}
+        onPointerOver={(e) => { e.stopPropagation(); document.body.style.cursor = 'pointer' }}
+        onPointerOut={(e)  => { e.stopPropagation(); document.body.style.cursor = 'default' }}
+      >
+        <circleGeometry args={[7, 20]} />
+        <meshBasicMaterial transparent opacity={0} />
+      </mesh>
       <group ref={ringRef}>
-        <mesh rotation={[-Math.PI / 2, 0, 0]}
-          onClick={(e) => { e.stopPropagation(); onPlace(position) }}
-          onPointerOver={(e) => { e.stopPropagation(); document.body.style.cursor = 'pointer' }}
-          onPointerOut={(e)  => { e.stopPropagation(); document.body.style.cursor = 'default' }}
-        >
+        <mesh rotation={[-Math.PI / 2, 0, 0]}>
           <torusGeometry args={[2.6, 0.35, 8, 28]} />
           <meshPhongMaterial color="#FFD700" emissive="#FFD700" emissiveIntensity={0.55} transparent opacity={0.88} />
         </mesh>
@@ -1486,7 +1587,7 @@ function PlacementSpot({ position, onPlace }) {
         <meshPhongMaterial color="#FFD700" transparent opacity={0.13} />
       </mesh>
       <pointLight position={[0, 1.2, 0]} color="#FFD700" intensity={1.0} distance={9} />
-      <Html position={[0, 4.5, 0]} center distanceFactor={16}>
+      <Html position={[0, 4.5, 0]} center distanceFactor={55}>
         <div style={{
           background: '#0f172aEE', color: '#FFD700', padding: '5px 14px',
           borderRadius: 8, fontSize: 13, fontWeight: 700, whiteSpace: 'nowrap',
@@ -1507,6 +1608,13 @@ const MONUMENT_SPOTS = [
   { id: 3, pos: [-38, 0,  43] },
   { id: 4, pos: [  0, 0,  43] },
   { id: 5, pos: [ 38, 0,  43] },
+]
+
+// Yacht-specific spots — in the harbour water (z > PH=46, y at water surface)
+const YACHT_SPOTS = [
+  { id: 10, pos: [-20, -0.5, 56] },
+  { id: 11, pos: [  0, -0.5, 56] },
+  { id: 12, pos: [ 20, -0.5, 56] },
 ]
 
 // ── Museum ────────────────────────────────────────────────────────────────────
@@ -1578,7 +1686,7 @@ function MuseumBuilding({ onClick, onHover, isHovered, showLabels }) {
 
       {/* Label */}
       {showLabels && (
-        <Html position={[0, 8.5, 0]} center distanceFactor={22}>
+        <Html position={[0, 8.5, 0]} center distanceFactor={85}>
           <div style={{
             background: isHovered ? '#C9A84CEE' : '#92400EEE',
             color: 'white', padding: '4px 11px', borderRadius: 8,
@@ -1602,7 +1710,7 @@ function AssetManagerZone({ unlocked, showLabels, onClick }) {
     <group position={[22, 0, 22]} onClick={(e) => { e.stopPropagation(); if (unlocked) onClick?.() }}>
       <EiffelTower unlocked={unlocked} />
       {showLabels && (
-        <Html position={[0, 13, 0]} center distanceFactor={22}>
+        <Html position={[0, 13, 0]} center distanceFactor={85}>
           <div style={{
             background: unlocked ? '#C9A84CEE' : '#374151EE',
             color: 'white', padding: '4px 11px', borderRadius: 8,
@@ -1643,18 +1751,11 @@ function Harbour() {
   const PH = PLATFORM_HALF
   return (
     <group>
-      {/* Water planes */}
-      {[
-        [[0, -0.55, PH + 12], [60, 0.1, 24]],
-        [[-PH - 12, -0.55, 0], [24, 0.1, 60]],
-        [[PH + 12, -0.55, 0], [24, 0.1, 60]],
-        [[0, -0.55, -PH - 12], [60, 0.1, 24]],
-      ].map(([pos, args], i) => (
-        <mesh key={i} position={pos}>
-          <boxGeometry args={args} />
-          <meshPhongMaterial color="#1B6FA8" shininess={60} />
-        </mesh>
-      ))}
+      {/* Water — single large square surrounding the whole island */}
+      <mesh position={[0, -0.56, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <planeGeometry args={[400, 400]} />
+        <meshPhongMaterial color="#1B6FA8" shininess={55} />
+      </mesh>
       {/* Pier */}
       <mesh position={[0, -0.02, PH + 2]}>
         <boxGeometry args={[3.2, 0.14, 4.5]} />
@@ -1750,6 +1851,9 @@ export default function CityScene({
       {/* Harbour + water */}
       <Harbour />
 
+      {/* Organic winding paths between districts */}
+      <OrganicPaths />
+
       {/* Trees */}
       {TREE_POS.map((pos, i) => (
         <Tree key={i} position={pos} scale={0.9 + (i % 3) * 0.12} />
@@ -1783,7 +1887,7 @@ export default function CityScene({
         showLabels={showLabels}
       />
 
-      {/* Quiz Academy — opens library/quiz modal */}
+      {/* Library — opens library/quiz modal */}
       <QuizAcademy
         onClick={onLibraryClick}
         onHover={setHovered}
@@ -1805,20 +1909,21 @@ export default function CityScene({
       {/* Placed monuments */}
       {placedMonuments.map((m, i) => {
         if (!m) return null
-        const [mx, , mz] = m.pos
+        const [mx, my, mz] = m.pos
         return (
-          <group key={i} position={[mx, 0, mz]}>
+          <group key={i} position={[mx, my ?? 0, mz]} frustumCulled={false}>
             {m.type === 'eiffelTower' && <EiffelTower unlocked />}
             {m.type === 'bigBen' && <BigBen />}
+            {m.type === 'yacht' && <Yacht />}
             {showLabels && (
-              <Html position={[0, 14, 0]} center distanceFactor={22}>
+              <Html position={[0, 14, 0]} center distanceFactor={85}>
                 <div style={{
                   background: '#0f172aEE', color: '#FFD700',
                   padding: '3px 10px', borderRadius: 7, fontSize: 12,
                   fontWeight: 700, whiteSpace: 'nowrap', pointerEvents: 'none',
                   border: '1px solid #FFD70066',
                 }}>
-                  {m.type === 'eiffelTower' ? '🗼 Eiffel Tower' : '🕰️ Big Ben'}
+                  {m.type === 'eiffelTower' ? '🗼 Eiffel Tower' : m.type === 'bigBen' ? '🕰️ Big Ben' : '⛵ Yacht'}
                 </div>
               </Html>
             )}
@@ -1827,7 +1932,7 @@ export default function CityScene({
       })}
 
       {/* Monument placement spots */}
-      {placingMonument && MONUMENT_SPOTS.filter(s => !placedMonuments.some(m => m && JSON.stringify(m.pos) === JSON.stringify(s.pos))).map(spot => (
+      {placingMonument && (placingMonument === 'yacht' ? YACHT_SPOTS : MONUMENT_SPOTS).filter(s => !placedMonuments.some(m => m && JSON.stringify(m.pos) === JSON.stringify(s.pos))).map(spot => (
         <PlacementSpot
           key={spot.id}
           position={spot.pos}

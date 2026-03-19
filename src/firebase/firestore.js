@@ -85,12 +85,15 @@ export async function sellStock(uid, instrumentId, sharesToSell) {
   const portfolio = data.portfolio || {}
   const holding   = portfolio[instrumentId]
 
-  if (!holding || holding.shares <= 0)            throw new Error('No holdings')
-  if (sharesToSell > holding.shares + 0.000001)   throw new Error('Not enough shares')
-  if (sharesToSell <= 0)                          throw new Error('Must sell more than 0')
+  if (!holding || holding.shares <= 0) throw new Error('No holdings')
 
-  const proceeds    = sharesToSell * price
-  const remainShares = +(holding.shares - sharesToSell).toFixed(6)
+  // null means sell everything
+  const shares = sharesToSell === null ? holding.shares : sharesToSell
+  if (shares > holding.shares + 0.000001) throw new Error('Not enough shares')
+  if (shares <= 0)                        throw new Error('Must sell more than 0')
+
+  const proceeds     = shares * price
+  const remainShares = +(holding.shares - shares).toFixed(6)
 
   const updates = {
     cash: +((data.cash ?? 0) + proceeds).toFixed(2),
@@ -101,6 +104,7 @@ export async function sellStock(uid, instrumentId, sharesToSell) {
     updates[`portfolio.${instrumentId}`] = {
       shares: remainShares,
       districtId: holding.districtId,
+      avgPurchasePrice: holding.avgPurchasePrice,
     }
   }
   await updateDoc(doc(db, 'users', uid), updates)
@@ -124,7 +128,7 @@ export async function checkDailyStreak(uid) {
 
   const streak       = lastLogin === yesterday ? (data.streak || 0) + 1 : 1
   const cappedStreak = Math.min(streak, 7)
-  const bonus        = cappedStreak * 500
+  const bonus        = 3000
   const xp           = cappedStreak * 50
 
   const updates = {

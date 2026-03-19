@@ -27,7 +27,7 @@ function InfoPanel({ id }) {
   return (
     <div className="px-5 py-4 bg-slate-950/80 border-t border-slate-700/40 text-xs space-y-3">
       <div className="flex items-center gap-2">
-        <span className="text-slate-400 font-semibold">⏱ Horizon:</span>
+        <span className="text-slate-400 font-semibold">Horizon:</span>
         <span className="font-bold px-2.5 py-0.5 rounded-full text-[11px]"
           style={{ background: info.horizonColor + '22', color: info.horizonColor, border: `1px solid ${info.horizonColor}44` }}>
           {info.horizon}
@@ -36,7 +36,7 @@ function InfoPanel({ id }) {
       <p className="text-slate-300 leading-relaxed text-[13px]">{info.thesis}</p>
       <div className="grid grid-cols-2 gap-3">
         <div className="bg-green-900/20 border border-green-800/30 rounded-xl p-3">
-          <div className="text-green-400 font-bold mb-1.5 text-[11px] uppercase tracking-wide">↑ Key Drivers</div>
+          <div className="text-green-400 font-bold mb-1.5 text-[11px] uppercase tracking-wide">Drivers</div>
           <ul className="space-y-1">
             {info.drivers.map((d, i) => (
               <li key={i} className="text-slate-400 leading-snug">· {d}</li>
@@ -44,7 +44,7 @@ function InfoPanel({ id }) {
           </ul>
         </div>
         <div className="bg-red-900/20 border border-red-800/30 rounded-xl p-3">
-          <div className="text-red-400 font-bold mb-1.5 text-[11px] uppercase tracking-wide">↓ Key Risks</div>
+          <div className="text-red-400 font-bold mb-1.5 text-[11px] uppercase tracking-wide">Risks</div>
           <ul className="space-y-1">
             {info.risks.map((r, i) => (
               <li key={i} className="text-slate-400 leading-snug">· {r}</li>
@@ -104,7 +104,7 @@ function InstrumentRow({ uid, id, currentYear, cash, holding, onRefresh }) {
   const sharesToSell    = heldShares * (sellPct / 100)
 
   return (
-    <div className={`border rounded-xl overflow-hidden transition-colors ${heldShares > 0 ? 'border-amber-700/50' : 'border-slate-700/50'}`}>
+    <div className="rounded-lg transition-colors" style={{ border: heldShares > 0 ? '1px solid #FFD00033' : '1px solid #ffffff12' }}>
       {/* Summary row */}
       <div className="flex items-center gap-3 px-4 py-3 hover:bg-slate-800/40 transition-colors">
         {/* ⓘ info button */}
@@ -144,7 +144,7 @@ function InstrumentRow({ uid, id, currentYear, cash, holding, onRefresh }) {
           {/* Holding */}
           {heldShares > 0 && (
             <div className="text-right shrink-0 w-32 border-l border-slate-700 pl-3">
-              <div className="text-amber-400 text-sm font-bold font-mono">{fmtCHF(heldValue)}</div>
+              <div className="text-sm font-bold font-mono" style={{ color: '#FFD000' }}>{fmtCHF(heldValue)}</div>
               <div className={`text-xs mt-0.5 font-semibold ${totalReturn !== null && totalReturn >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                 {totalReturn !== null ? `${totalReturn >= 0 ? '+' : ''}${totalReturn}% tot.` : `${fmtShares(heldShares)} sh.`}
               </div>
@@ -175,7 +175,8 @@ function InstrumentRow({ uid, id, currentYear, cash, holding, onRefresh }) {
                 <button
                   onClick={handleBuy}
                   disabled={busy || !buyAmount || parseFloat(buyAmount) > cash || parseFloat(buyAmount) <= 0}
-                  className="bg-green-600 hover:bg-green-500 disabled:opacity-40 text-white text-xs font-bold px-4 py-2 rounded-lg transition-colors"
+                  className="disabled:opacity-40 text-xs font-bold px-4 py-2 rounded transition-colors"
+                  style={{ background: '#FFD000', color: '#0d1117' }}
                 >
                   {busy ? '…' : 'Buy'}
                 </button>
@@ -242,7 +243,7 @@ export default function MarketModal({ uid, districtId, currentYear, cash, portfo
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/75 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-3xl max-h-[88vh] flex flex-col shadow-2xl">
+      <div className="pf-modal relative bg-[#0d1117] rounded-xl w-full max-w-3xl max-h-[88vh] flex flex-col shadow-2xl" style={{ border: '1px solid #FFD00022' }}>
 
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-700/60">
@@ -253,7 +254,7 @@ export default function MarketModal({ uid, districtId, currentYear, cash, portfo
           <div className="flex items-center gap-5">
             {districtValue > 0 && (
               <div className="text-right">
-                <div className="text-amber-400 font-bold text-base font-mono">{fmtCHF(districtValue)}</div>
+                <div className="font-bold text-base font-mono" style={{ color: '#FFD000' }}>{fmtCHF(districtValue)}</div>
                 <div className={`text-xs font-semibold ${districtReturn !== null && districtReturn >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                   {districtReturn !== null ? `${districtReturn >= 0 ? '+' : ''}${districtReturn}% total return` : 'invested here'}
                 </div>
@@ -266,7 +267,7 @@ export default function MarketModal({ uid, districtId, currentYear, cash, portfo
         {/* Year badge */}
         <div className="px-6 pt-3 pb-2 flex items-center gap-3">
           <span className="bg-slate-800 border border-slate-600 text-slate-300 text-xs font-semibold px-3 py-1 rounded-full">
-            📅 Year {currentYear}
+            Year {currentYear}
           </span>
           <span className="text-slate-500 text-xs">Prices at year-end · Click a row to trade</span>
         </div>
@@ -281,7 +282,7 @@ export default function MarketModal({ uid, districtId, currentYear, cash, portfo
         </div>
 
         {/* Instrument list */}
-        <div className="flex-1 overflow-y-auto px-4 pb-3 flex flex-col gap-1.5">
+        <div className="flex-1 min-h-0 overflow-y-auto px-4 pb-3 flex flex-col gap-1.5">
           {instruments.map(id => (
             <InstrumentRow
               key={id}

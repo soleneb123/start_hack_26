@@ -31,12 +31,12 @@ export default function PortfolioModal({ onClose, portfolio = {}, cash = 10000, 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-slate-900 border border-blue-700/40 rounded-2xl w-full max-w-2xl max-h-[85vh] flex flex-col shadow-2xl">
+      <div className="pf-modal relative bg-[#0d1117] rounded-xl w-full max-w-2xl max-h-[85vh] flex flex-col shadow-2xl" style={{ border: '1px solid #FFD00022' }}>
 
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-3 border-b border-slate-700/60">
           <div>
-            <h2 className="text-white font-black text-lg">🏦 PostFinance — Portfolio Summary</h2>
+            <h2 className="text-white font-black text-lg">PostFinance — Portfolio Summary</h2>
             <div className="text-slate-400 text-xs mt-0.5">Year {currentYear} · All holdings at current prices</div>
           </div>
           <button onClick={onClose} className="text-slate-400 hover:text-white text-2xl leading-none">×</button>
@@ -45,8 +45,8 @@ export default function PortfolioModal({ onClose, portfolio = {}, cash = 10000, 
         {/* Summary bar */}
         <div className="grid grid-cols-4 gap-px bg-slate-700/30 border-b border-slate-700/40">
           {[
-            { label: 'Cash',          value: fmtCHF(cash),      color: 'text-green-400' },
-            { label: 'Portfolio',     value: fmtCHF(totalValue), color: 'text-blue-400' },
+            { label: 'Cash',          value: fmtCHF(cash),      color: '' },
+            { label: 'Portfolio',     value: fmtCHF(totalValue), color: 'text-white' },
             { label: 'Net Worth',     value: fmtCHF(netWorth),   color: 'text-white' },
             {
               label: 'Total Return',
@@ -58,7 +58,7 @@ export default function PortfolioModal({ onClose, portfolio = {}, cash = 10000, 
           ].map(({ label, value, color }) => (
             <div key={label} className="px-4 py-3 bg-slate-900">
               <div className="text-slate-500 text-[10px] uppercase tracking-wider">{label}</div>
-              <div className={`text-sm font-black mt-0.5 ${color}`}>{value}</div>
+              <div className={`text-sm font-black mt-0.5 ${color || 'text-white'}`} style={label === 'Cash' || label === 'Net Worth' ? { color: '#FFD000' } : {}}>{value}</div>
             </div>
           ))}
         </div>

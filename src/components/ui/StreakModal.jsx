@@ -11,7 +11,7 @@ export default function StreakModal({ streakData, onClose }) {
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
 
       {/* Card */}
-      <div className="relative bg-slate-900 border border-slate-700 rounded-2xl p-8 max-w-sm w-full mx-4 text-center shadow-2xl">
+      <div className="pf-modal relative bg-slate-900 border border-slate-700 rounded-2xl p-8 max-w-sm w-full mx-4 text-center shadow-2xl">
         {/* Flame */}
         <div className="text-6xl mb-2 animate-bounce">🔥</div>
 

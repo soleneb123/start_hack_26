@@ -82,6 +82,13 @@ function CityApp() {
     })
     setPlacingMonument(null)
   }
+  const handleRemoveMonument = (slotId) => {
+    setPlacedMonuments(prev => {
+      const next = [...prev]
+      next[slotId - 1] = null
+      return next
+    })
+  }
 
   // ── Fire drill state ───────────────────────────────────────────────────────
   const [fireDrill, setFireDrill] = useState(null) // null | { phase, burning, plan, tick, diversifiedCount, missingDistricts }
@@ -139,22 +146,17 @@ function CityApp() {
 
     setFireDrill(prev => prev ? { ...prev, assetsLost: true } : prev)
 
-    const count = fireDrill.diversifiedCount
-    const burnFraction = count === 0 ? 0 : count === 1 ? 0.50 : count === 2 ? 0.35 : count === 3 ? 0.20 : count === 4 ? 0.10 : count === 5 ? 0.03 : 0
     Promise.all(
-      [...fireDrill.burning].map(instId => {
-        const holding = portfolio[instId]
-        if (!holding || holding.shares <= 0) return Promise.resolve()
-        const sharesToSell = Math.max(1e-8, holding.shares * burnFraction)
-        return sellStock(user.uid, instId, sharesToSell)
-      })
+      [...fireDrill.burning].map(instId =>
+        sellStock(user.uid, instId, null).catch(() => {})  // null = sell all
+      )
     ).then(() => refreshUserData()).catch(console.error)
   }, [fireDrill?.phase])
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#0f1a0f]">
-        <div className="text-green-400 text-lg font-bold animate-pulse">🏙️ Loading WealthCity...</div>
+      <div className="min-h-screen flex items-center justify-center bg-slate-950">
+        <div className="text-lg font-bold animate-pulse" style={{ color: '#FFD000' }}>Loading Investopia...</div>
       </div>
     )
   }
@@ -236,10 +238,10 @@ function CityApp() {
       <div className="absolute bottom-0 left-0 right-0 px-6 py-3 bg-slate-900/70 backdrop-blur border-t border-slate-700/50 flex items-center justify-between z-20">
         <div className="text-slate-400 text-xs">
           {allUnlocked
-            ? '🎉 All markets unlocked! Click any district to trade.'
+            ? 'All markets unlocked. Click any district to trade.'
             : unlockedAreas.length === 0
-            ? '👋 Welcome! Open 📚 Library to learn about bonds and earn your first CHF.'
-            : `${ASSET_ORDER.length - unlockedAreas.length} market${ASSET_ORDER.length - unlockedAreas.length !== 1 ? 's' : ''} locked. Keep learning in 📚 Library.`
+            ? 'Welcome. Open the Library to learn about bonds and earn your first CHF.'
+            : `${ASSET_ORDER.length - unlockedAreas.length} market${ASSET_ORDER.length - unlockedAreas.length !== 1 ? 's' : ''} locked. Keep learning in the Library.`
           }
         </div>
         <div className="flex gap-2">
@@ -286,6 +288,7 @@ function CityApp() {
           portfolio={portfolio}
           currentYear={currentYear}
           onPlaceMonument={handlePlaceMonument}
+          onRemoveMonument={handleRemoveMonument}
           placedMonuments={placedMonuments}
         />
       )}
@@ -293,11 +296,10 @@ function CityApp() {
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setModal(null)} />
           <div className="relative bg-slate-900 border border-amber-500/40 rounded-2xl p-8 max-w-sm w-full mx-4 text-center shadow-2xl">
-            <div className="text-5xl mb-3">🗼</div>
             <h2 className="text-white text-xl font-bold mb-2">Asset Manager HQ</h2>
             <p className="text-slate-400 text-sm mb-4">Advanced portfolio quizzes coming soon.</p>
-            <div className="bg-amber-900/30 border border-amber-500/30 rounded-xl px-4 py-3 mb-6 text-xs text-amber-300">🚧 Under construction</div>
-            <button onClick={() => setModal(null)} className="w-full bg-amber-600 hover:bg-amber-500 text-white font-bold py-3 rounded-xl transition-colors">Got it</button>
+            <div className="bg-amber-900/30 border border-amber-500/30 rounded-xl px-4 py-3 mb-6 text-xs text-amber-300">Under construction</div>
+            <button onClick={() => setModal(null)} className="w-full font-bold py-3 rounded-xl transition-colors" style={{ background: '#FFD000', color: '#1a1200' }}>Got it</button>
           </div>
         </div>
       )}

@@ -122,7 +122,7 @@ export default function SimulationModal({ onClose, unlockedAreas, capital, onSim
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-black/75 backdrop-blur-sm" />
-      <div className="relative bg-slate-900 border border-slate-700 rounded-2xl w-[860px] max-h-[90vh] overflow-hidden flex flex-col shadow-2xl">
+      <div className="pf-modal relative bg-slate-900 border border-slate-700 rounded-2xl w-[860px] max-h-[90vh] overflow-hidden flex flex-col shadow-2xl">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-700 shrink-0">
           <div className="flex items-center gap-3">
