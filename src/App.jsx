@@ -10,7 +10,7 @@ import StreakModal from './components/ui/StreakModal'
 import FireDrillModal from './components/ui/FireDrillModal'
 import MuseumModal from './components/ui/MuseumModal'
 import PortfolioModal from './components/ui/PortfolioModal'
-import { markQuizComplete, unlockArea, advanceYear, syncTotalScore, resetUserProgress, sellStock } from './firebase/firestore'
+import { markQuizComplete, unlockArea, advanceYear, syncTotalScore, resetUserProgress, sellStock, getPrice } from './firebase/firestore'
 import { ASSET_ORDER } from './data/assetData'
 import { GAME_END_YEAR, GAME_START_YEAR, DISTRICT_INSTRUMENTS } from './data/stockData'
 
@@ -36,6 +36,25 @@ function CityApp() {
   }, [userData])
 
   const [simPaused, setSimPaused] = useState(true)
+  const [portfolioHistory, setPortfolioHistory] = useState([])
+
+  // Track net worth each year for the mini chart
+  useEffect(() => {
+    if (!userData) return
+    const p = userData?.portfolio || {}
+    const c = userData?.cash ?? userData?.capital ?? 0
+    let pv = 0
+    for (const [instId, h] of Object.entries(p)) {
+      if ((h.shares || 0) > 0) pv += h.shares * getPrice(instId, currentYear)
+    }
+    const netWorth = c + pv
+    setPortfolioHistory(prev => {
+      if (prev.length > 0 && prev[prev.length - 1].year === currentYear) {
+        return prev.map(pt => pt.year === currentYear ? { year: currentYear, value: netWorth } : pt)
+      }
+      return [...prev, { year: currentYear, value: netWorth }]
+    })
+  }, [currentYear, userData])
 
   // ── Ad mode ────────────────────────────────────────────────────────────────
   // Toggle with 'A' key; tracks elapsed time for overlay text phases
@@ -441,6 +460,11 @@ function CityApp() {
           placedMonuments={placedMonuments}
         />
       )}
+      {/* Mini portfolio chart — bottom right, always visible during simulation */}
+      {!adMode && portfolioHistory.length >= 2 && (
+        <MiniPortfolioChart history={portfolioHistory} />
+      )}
+
       {!adMode && modal === 'assetManager' && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setModal(null)} />
@@ -452,6 +476,57 @@ function CityApp() {
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+function MiniPortfolioChart({ history }) {
+  const W = 200, H = 70, PX = 8, PY = 6
+  const vals = history.map(p => p.value)
+  const minV = Math.min(...vals)
+  const maxV = Math.max(...vals)
+  const range = maxV - minV || 1
+
+  const toX = i => PX + (i / (history.length - 1)) * (W - PX * 2)
+  const toY = v => PY + (1 - (v - minV) / range) * (H - PY * 2)
+
+  const pts = history.map((p, i) => `${toX(i)},${toY(p.value)}`).join(' ')
+  const fillPts = `${toX(0)},${H} ${pts} ${toX(history.length - 1)},${H}`
+
+  const first = vals[0]
+  const last = vals[vals.length - 1]
+  const pct = ((last - first) / first) * 100
+  const isUp = pct >= 0
+  const col = isUp ? '#4ade80' : '#f87171'
+
+  return (
+    <div style={{
+      position: 'fixed', bottom: 56, right: 16, zIndex: 20,
+      background: 'rgba(13,17,23,0.92)', backdropFilter: 'blur(8px)',
+      border: `1px solid ${col}44`, borderRadius: 14,
+      padding: '8px 10px', width: 220,
+      boxShadow: '0 8px 32px #00000088',
+      fontFamily: 'system-ui, sans-serif',
+      pointerEvents: 'none',
+    }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+        <span style={{ fontSize: 10, fontWeight: 700, color: '#ffffff66', letterSpacing: '0.06em', textTransform: 'uppercase' }}>Net Worth</span>
+        <span style={{ fontSize: 11, fontWeight: 800, color: col }}>
+          {isUp ? '+' : ''}{pct.toFixed(1)}%
+        </span>
+      </div>
+      <svg width={W} height={H} style={{ display: 'block', overflow: 'visible' }}>
+        <polygon points={fillPts} fill={col + '22'} />
+        <polyline points={pts} fill="none" stroke={col} strokeWidth={2} strokeLinejoin="round" />
+        <circle cx={toX(history.length - 1)} cy={toY(last)} r={3} fill={col} />
+      </svg>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 2, fontSize: 9, color: '#ffffff44' }}>
+        <span>{history[0].year}</span>
+        <span style={{ color: '#ffffffBB', fontWeight: 600, fontSize: 10 }}>
+          CHF {Math.round(last).toLocaleString('de-CH')}
+        </span>
+        <span>{history[history.length - 1].year}</span>
+      </div>
     </div>
   )
 }

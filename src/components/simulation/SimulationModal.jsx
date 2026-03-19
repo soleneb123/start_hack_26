@@ -98,24 +98,33 @@ export default function SimulationModal({ onClose, unlockedAreas, capital, onSim
 
   // During running phase: side panel so city map stays visible
   if (phase === 'running' && simResult) {
+    const miniChartData = simResult.yearlyResults.slice(0, currentYear + 1).map(y => ({
+      year: y.year,
+      portfolio: y.portfolioValue,
+      benchmark: y.benchmarkValue,
+    }))
+
     return (
-      <div className="fixed right-4 top-14 bottom-12 w-[380px] z-50 flex flex-col bg-slate-900/95 backdrop-blur border border-slate-700 rounded-2xl overflow-hidden shadow-2xl">
-        <div className="flex items-center justify-between px-4 py-3 border-b border-slate-700 shrink-0">
-          <div className="flex items-center gap-2">
-            <span className="text-lg">📊</span>
-            <span className="text-white font-bold text-sm">Simulation Running...</span>
+      <>
+        <div className="fixed right-4 top-14 bottom-12 w-[380px] z-50 flex flex-col bg-slate-900/95 backdrop-blur border border-slate-700 rounded-2xl overflow-hidden shadow-2xl">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-slate-700 shrink-0">
+            <div className="flex items-center gap-2">
+              <span className="text-lg">📊</span>
+              <span className="text-white font-bold text-sm">Simulation Running...</span>
+            </div>
+            <button onClick={onClose} className="text-slate-400 hover:text-white w-7 h-7 flex items-center justify-center rounded-lg hover:bg-slate-800 text-sm">✕</button>
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-white w-7 h-7 flex items-center justify-center rounded-lg hover:bg-slate-800 text-sm">✕</button>
+          <div className="flex-1 overflow-y-auto">
+            <RunningPhase
+              result={simResult}
+              currentYear={currentYear}
+              isPlaying={isPlaying}
+              onToggle={() => setIsPlaying(p => !p)}
+            />
+          </div>
         </div>
-        <div className="flex-1 overflow-y-auto">
-          <RunningPhase
-            result={simResult}
-            currentYear={currentYear}
-            isPlaying={isPlaying}
-            onToggle={() => setIsPlaying(p => !p)}
-          />
-        </div>
-      </div>
+        <MiniPortfolioGraph chartData={miniChartData} />
+      </>
     )
   }
 
@@ -438,6 +447,49 @@ function ResultsPhase({ result, capital, onSave, onRerun, onClose }) {
         >
           {saved ? '✅ Saved to Leaderboard' : '🏆 Save Score'}
         </button>
+      </div>
+    </div>
+  )
+}
+
+function MiniPortfolioGraph({ chartData }) {
+  if (chartData.length < 1) return null
+  const latest = chartData[chartData.length - 1]
+  const first = chartData[0]
+  const pct = ((latest.portfolio - first.portfolio) / first.portfolio * 100)
+  const isUp = pct >= 0
+
+  return (
+    <div className="fixed bottom-4 left-4 z-50 w-56 bg-slate-900/95 backdrop-blur border border-slate-700 rounded-2xl shadow-2xl overflow-hidden">
+      <div className="flex items-center justify-between px-3 pt-2 pb-1">
+        <span className="text-xs text-slate-400 font-medium">Portfolio</span>
+        <span className={`text-xs font-bold ${isUp ? 'text-green-400' : 'text-red-400'}`}>
+          {isUp ? '+' : ''}{pct.toFixed(1)}%
+        </span>
+      </div>
+      <div className="h-20 px-1 pb-1">
+        <ResponsiveContainer width="100%" height="100%">
+          <AreaChart data={chartData} margin={{ top: 2, right: 4, bottom: 0, left: 4 }}>
+            <defs>
+              <linearGradient id="mpg" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="#4ade80" stopOpacity={0.35} />
+                <stop offset="95%" stopColor="#4ade80" stopOpacity={0} />
+              </linearGradient>
+              <linearGradient id="mbg" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="#60a5fa" stopOpacity={0.15} />
+                <stop offset="95%" stopColor="#60a5fa" stopOpacity={0} />
+              </linearGradient>
+            </defs>
+            <XAxis dataKey="year" tick={{ fill: '#64748b', fontSize: 8 }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
+            <YAxis hide />
+            <Tooltip
+              contentStyle={{ background: '#1e293b', border: '1px solid #334155', borderRadius: 6, fontSize: 10, padding: '4px 8px' }}
+              formatter={(v, n) => [`CHF ${v.toLocaleString()}`, n === 'portfolio' ? 'You' : 'Benchmark']}
+            />
+            <Area type="monotone" dataKey="benchmark" stroke="#60a5fa" strokeWidth={1} fill="url(#mbg)" strokeDasharray="3 2" dot={false} />
+            <Area type="monotone" dataKey="portfolio" stroke="#4ade80" strokeWidth={1.5} fill="url(#mpg)" dot={false} />
+          </AreaChart>
+        </ResponsiveContainer>
       </div>
     </div>
   )
