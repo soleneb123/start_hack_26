@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { INSTRUMENTS, GAME_START_YEAR } from '../../data/stockData'
 import { getPrice } from '../../firebase/firestore'
-import { YEARS } from '../../data/assetData'
+import { YEARS, ASSET_CLASSES, SAVINGS_RATE } from '../../data/assetData'
 
 const PF_YELLOW = '#FFD000'
 
@@ -39,6 +39,50 @@ export default function PortfolioModal({ onClose, portfolio = {}, cash = 500000,
   const totalGain     = totalValue - totalInvested
   const totalRetPct   = totalInvested > 0 ? ((totalValue / totalInvested) - 1) * 100 : null
   const netWorth      = cash + totalValue
+
+  // ── Diversification Score ────────────────────────────────────────────────
+  // Group portfolio value by asset class (districtId)
+  const byClass = {}
+  for (const { inst, value } of rows) {
+    const k = inst.districtId || 'other'
+    byClass[k] = (byClass[k] || 0) + value
+  }
+  const classCount = Object.keys(byClass).length
+  const hhi = totalValue > 0
+    ? Object.values(byClass).reduce((s, v) => s + Math.pow(v / totalValue, 2), 0)
+    : 1
+  // 100 = perfectly spread (HHI=1/6), 0 = fully concentrated (HHI=1)
+  const minHHI = 1 / 6
+  const divScore = totalValue > 0
+    ? Math.round(Math.max(0, Math.min(100, (1 - hhi) / (1 - minHHI) * 100)))
+    : 0
+  const divGrade = divScore >= 80 ? { g: 'A', label: 'Well Diversified',    col: '#4ade80' }
+                 : divScore >= 55 ? { g: 'B', label: 'Moderate Spread',     col: '#a3e635' }
+                 : divScore >= 30 ? { g: 'C', label: 'Concentrated',         col: '#fb923c' }
+                 :                  { g: 'D', label: 'High Concentration',   col: '#f87171' }
+
+  // ── Risk-Return Score ────────────────────────────────────────────────────
+  // Weighted portfolio volatility from asset class annualised vol
+  const weightedVol = totalValue > 0
+    ? Object.entries(byClass).reduce((s, [k, v]) => {
+        const vol = ASSET_CLASSES[k]?.volatility ?? 15
+        return s + (v / totalValue) * vol
+      }, 0)
+    : 0
+  // Years since GAME_START_YEAR to annualise return
+  const yearsHeld = Math.max(1, currentYear - GAME_START_YEAR)
+  const annualisedReturn = totalInvested > 0
+    ? (Math.pow(totalValue / totalInvested, 1 / yearsHeld) - 1) * 100
+    : 0
+  const savingsAnnual = SAVINGS_RATE          // 0.5 %
+  const excessReturn  = annualisedReturn - savingsAnnual
+  // Sharpe-like: excess / vol, scaled to 0-100 (1.5 = perfect = 100)
+  const rrRaw   = weightedVol > 0 ? excessReturn / weightedVol : 0
+  const rrScore = Math.round(Math.max(0, Math.min(100, (rrRaw / 1.5) * 100)))
+  const rrGrade = rrScore >= 75 ? { g: 'A', label: 'Excellent Risk/Return', col: '#4ade80' }
+               : rrScore >= 50  ? { g: 'B', label: 'Good Risk/Return',      col: '#a3e635' }
+               : rrScore >= 25  ? { g: 'C', label: 'Fair Risk/Return',      col: '#fb923c' }
+               :                  { g: 'D', label: 'Poor Risk/Return',       col: '#f87171' }
 
   // Chart: compute portfolio value at each year up to currentYear
   const chartYears = YEARS.filter(y => y <= currentYear)
@@ -97,6 +141,67 @@ export default function PortfolioModal({ onClose, portfolio = {}, cash = 500000,
             </div>
           ))}
         </div>
+
+        {/* Score panel */}
+        {rows.length > 0 && (
+          <div className="grid grid-cols-2 gap-px shrink-0" style={{ background: '#ffffff08', borderBottom: '1px solid #ffffff10' }}>
+            {[
+              {
+                title: 'Diversification',
+                score: divScore,
+                grade: divGrade,
+                stats: [
+                  { label: 'Asset classes', value: classCount },
+                  { label: 'Concentration (HHI)', value: hhi.toFixed(2) },
+                ],
+              },
+              {
+                title: 'Risk-Return',
+                score: rrScore,
+                grade: rrGrade,
+                stats: [
+                  { label: 'Ann. return', value: `${annualisedReturn >= 0 ? '+' : ''}${annualisedReturn.toFixed(1)}%` },
+                  { label: 'Portfolio vol', value: `${weightedVol.toFixed(1)}%` },
+                ],
+              },
+            ].map(({ title, score, grade, stats }) => (
+              <div key={title} className="px-4 py-3" style={{ background: '#0d1117' }}>
+                <div className="text-[10px] uppercase tracking-wider mb-2" style={{ color: '#ffffff33' }}>{title} Score</div>
+                <div className="flex items-center gap-3">
+                  {/* Gauge bar */}
+                  <div className="flex-1">
+                    <div className="h-1.5 rounded-full" style={{ background: '#ffffff0f' }}>
+                      <div
+                        className="h-1.5 rounded-full transition-all"
+                        style={{ width: `${score}%`, background: grade.col }}
+                      />
+                    </div>
+                  </div>
+                  {/* Grade badge */}
+                  <div
+                    className="text-xs font-black px-2 py-0.5 rounded"
+                    style={{ background: grade.col + '22', color: grade.col, minWidth: 26, textAlign: 'center' }}
+                  >
+                    {grade.g}
+                  </div>
+                  {/* Numeric score */}
+                  <div className="text-sm font-black" style={{ color: grade.col, minWidth: 36, textAlign: 'right' }}>
+                    {score}<span className="text-[9px] font-normal" style={{ color: grade.col + '88' }}>/100</span>
+                  </div>
+                </div>
+                <div className="text-[10px] mt-1 mb-1.5" style={{ color: grade.col + 'bb' }}>{grade.label}</div>
+                <div className="flex gap-4">
+                  {stats.map(({ label, value }) => (
+                    <div key={label}>
+                      <div className="text-[9px]" style={{ color: '#ffffff33' }}>{label}</div>
+                      <div className="text-xs font-semibold" style={{ color: '#ffffff88' }}>{value}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* Portfolio chart — shown when Total Return is clicked */}
         {showChart && chartData.length > 1 && (

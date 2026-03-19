@@ -1813,16 +1813,16 @@ function AssetManagerZone({ unlocked, showLabels, onClick }) {
   return (
     <group position={[22, 0, 22]} onClick={(e) => { e.stopPropagation(); if (unlocked) onClick?.() }}>
       <EiffelTower unlocked={unlocked} />
-      {showLabels && (
+      {showLabels && unlocked && (
         <Html position={[0, 13, 0]} center distanceFactor={85}>
           <div style={{
-            background: unlocked ? '#C9A84CEE' : '#374151EE',
+            background: '#C9A84CEE',
             color: 'white', padding: '4px 11px', borderRadius: 8,
             fontSize: 14, fontWeight: 700, whiteSpace: 'nowrap',
             pointerEvents: 'none',
-            border: `1px solid ${unlocked ? '#F59E0B' : '#6B7280'}88`,
+            border: '1px solid #F59E0B88',
           }}>
-            {unlocked ? '🏆 Asset Manager' : '🔒 5-day streak to unlock'}
+            🏆 Asset Manager
           </div>
         </Html>
       )}
