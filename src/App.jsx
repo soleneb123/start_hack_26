@@ -18,6 +18,8 @@ function CityApp() {
   const { user, userData, loading, refreshUserData, streakData, clearStreakData } = useAuth()
   const [modal, setModal] = useState(null)
   const [speedMode, setSpeedMode] = useState(false)
+  const [adMode, setAdMode] = useState(false)
+  const [adElapsed, setAdElapsed] = useState(0)
   const YEAR_INTERVAL_MS = speedMode ? 500 : 5000
 
   // ── Year state (managed locally for instant UI, synced to Firebase async) ──
@@ -34,6 +36,25 @@ function CityApp() {
   }, [userData])
 
   const [simPaused, setSimPaused] = useState(true)
+
+  // ── Ad mode ────────────────────────────────────────────────────────────────
+  // Toggle with 'A' key; tracks elapsed time for overlay text phases
+  useEffect(() => {
+    const onKey = (e) => {
+      if ((e.key === 'a' || e.key === 'A') && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        setAdMode(m => !m)
+        setAdElapsed(0)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
+
+  useEffect(() => {
+    if (!adMode) { setAdElapsed(0); return }
+    const id = setInterval(() => setAdElapsed(t => Math.min(15, t + 0.1)), 100)
+    return () => clearInterval(id)
+  }, [adMode])
 
   // Auto-advance year every YEAR_INTERVAL_MS (only when not paused)
   useEffect(() => {
@@ -186,35 +207,150 @@ function CityApp() {
 
   return (
     <div className="h-screen w-screen overflow-hidden relative">
-      <Header
-        onOpenLeaderboard={() => setModal('leaderboard')}
-        onOpenLibrary={() => setModal('library')}
-        currentYear={currentYear}
-        yearProgress={simPaused ? 0 : yearProgress}
-        isFinished={currentYear >= GAME_END_YEAR}
-        simPaused={simPaused}
-        onToggleSim={() => setSimPaused(p => !p)}
-        speedMode={speedMode}
-        onToggleSpeed={() => setSpeedMode(m => !m)}
-        onRestart={() => {
-          setCurrentYear(GAME_START_YEAR)
-          setYearProgress(0)
-          setSimPaused(true)
-          advanceYear(user.uid, GAME_START_YEAR).catch(console.error)
-        }}
-        onNewGame={async () => {
-          if (!window.confirm('Start a brand new game? This resets your cash, portfolio and year — it cannot be undone.')) return
-          await resetUserProgress(user.uid)
-          setCurrentYear(GAME_START_YEAR)
-          setYearProgress(0)
-          setSimPaused(true)
-          yearInitialized.current = false
-          await refreshUserData()
-        }}
-        onFireDrill={startFireDrill}
-      />
+      {/* ── Ad mode full-screen overlay ──────────────────────────────────────── */}
+      {adMode && (() => {
+        const phase = adElapsed < 1.0 ? 0 : adElapsed < 3.0 ? 1 : adElapsed < 5.0 ? 2 : adElapsed < 10.0 ? 3 : 4
+        const phrases = [
+          'Investopia',
+          'Discover every asset class',
+          'Build your portfolio from scratch',
+          'Grow your own city with a diversified portfolio',
+          '',   // final phase — big title takes over
+        ]
+        const finalPhase    = adElapsed >= 10.0
+        const darkenOpacity = finalPhase ? Math.min(0.62, (adElapsed - 10.0) / 2.5) : 0
+        const titleOpacity  = finalPhase ? Math.min(1, (adElapsed - 10.0) / 1.5) : 0
+        const subOpacity    = finalPhase ? Math.min(1, (adElapsed - 11.3) / 1.0) : 0
 
-      <div className="absolute inset-0 pt-12">
+        return (
+          <div style={{ position: 'fixed', inset: 0, zIndex: 100, pointerEvents: 'none' }}>
+
+            {/* ── Darkening vignette (final phase) ── */}
+            <div style={{
+              position: 'absolute', inset: 0,
+              background: `rgba(0,0,0,${darkenOpacity})`,
+              transition: 'background 0.3s',
+            }} />
+
+            {/* ── INVESTOPIA title (final phase) ── */}
+            {finalPhase && (
+              <div style={{
+                position: 'absolute', inset: 0,
+                display: 'flex', flexDirection: 'column',
+                alignItems: 'center', justifyContent: 'center',
+                gap: 10,
+              }}>
+                <div style={{
+                  fontSize: 78, fontWeight: 900, letterSpacing: '0.1em',
+                  color: '#FFD000',
+                  textShadow: '0 0 60px #FFD000BB, 0 0 20px #FFD00077',
+                  fontFamily: 'Arial Black, Impact, sans-serif',
+                  opacity: titleOpacity,
+                  transition: 'opacity 0.3s',
+                }}>
+                  INVESTOPIA
+                </div>
+                <div style={{
+                  fontSize: 22, fontWeight: 600, letterSpacing: '0.22em',
+                  color: 'white', textTransform: 'uppercase',
+                  textShadow: '0 2px 12px rgba(0,0,0,0.9)',
+                  opacity: subOpacity,
+                  transition: 'opacity 0.3s',
+                }}>
+                  by PostFinance
+                </div>
+              </div>
+            )}
+
+            {/* ── Top branding bar ── */}
+            <div style={{
+              position: 'absolute', top: 0, left: 0, right: 0,
+              padding: '18px 28px', display: 'flex', alignItems: 'center', gap: 14,
+              background: 'linear-gradient(to bottom, rgba(0,0,0,0.55), transparent)',
+            }}>
+              <div style={{
+                width: 36, height: 36, borderRadius: 8,
+                background: '#FFD000', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontWeight: 900, fontSize: 18, color: '#1a1200',
+              }}>P</div>
+              <span style={{ color: '#FFD000', fontWeight: 800, fontSize: 20, letterSpacing: '0.04em' }}>
+                PostFinance
+              </span>
+            </div>
+
+            {/* ── Bottom phrase + progress bar ── */}
+            <div style={{
+              position: 'absolute', bottom: 0, left: 0, right: 0,
+              padding: '0 0 32px',
+              background: 'linear-gradient(to top, rgba(0,0,0,0.65), transparent)',
+              opacity: finalPhase ? 0 : 1,
+              transition: 'opacity 0.8s',
+            }}>
+              <div style={{
+                textAlign: 'center', color: 'white',
+                fontSize: 28, fontWeight: 800, letterSpacing: '0.02em',
+                textShadow: '0 2px 16px rgba(0,0,0,0.8)',
+                marginBottom: 18,
+              }}>
+                {phrases[phase]}
+              </div>
+              <div style={{ margin: '0 auto', width: 220, height: 3, background: 'rgba(255,255,255,0.2)', borderRadius: 2 }}>
+                <div style={{
+                  height: '100%', borderRadius: 2,
+                  background: '#FFD000',
+                  width: `${(adElapsed / 15) * 100}%`,
+                  transition: 'width 0.1s linear',
+                }} />
+              </div>
+            </div>
+
+            {/* ── Exit button ── */}
+            <button
+              style={{
+                position: 'absolute', top: 18, right: 22,
+                background: 'rgba(0,0,0,0.45)', border: '1px solid rgba(255,255,255,0.25)',
+                color: 'white', borderRadius: 8, padding: '6px 14px',
+                fontSize: 13, fontWeight: 600, cursor: 'pointer', pointerEvents: 'all',
+              }}
+              onClick={() => setAdMode(false)}
+            >
+              Exit ✕
+            </button>
+          </div>
+        )
+      })()}
+
+      {!adMode && (
+        <Header
+          onOpenLeaderboard={() => setModal('leaderboard')}
+          onOpenLibrary={() => setModal('library')}
+          currentYear={currentYear}
+          yearProgress={simPaused ? 0 : yearProgress}
+          isFinished={currentYear >= GAME_END_YEAR}
+          simPaused={simPaused}
+          onToggleSim={() => setSimPaused(p => !p)}
+          speedMode={speedMode}
+          onToggleSpeed={() => setSpeedMode(m => !m)}
+          onRestart={() => {
+            setCurrentYear(GAME_START_YEAR)
+            setYearProgress(0)
+            setSimPaused(true)
+            advanceYear(user.uid, GAME_START_YEAR).catch(console.error)
+          }}
+          onNewGame={async () => {
+            if (!window.confirm('Start a brand new game? This resets your cash, portfolio and year — it cannot be undone.')) return
+            await resetUserProgress(user.uid)
+            setCurrentYear(GAME_START_YEAR)
+            setYearProgress(0)
+            setSimPaused(true)
+            yearInitialized.current = false
+            await refreshUserData()
+          }}
+          onFireDrill={startFireDrill}
+        />
+      )}
+
+      <div className={`absolute inset-0 ${adMode ? '' : 'pt-12'}`}>
         <CityMap
           unlockedAreas={unlockedAreas}
           cash={cash}
@@ -231,37 +367,50 @@ function CityApp() {
           placingMonument={placingMonument?.type ?? null}
           placedMonuments={placedMonuments}
           onMonumentPlaced={handleMonumentPlaced}
+          adMode={adMode}
         />
       </div>
 
       {/* Bottom status bar */}
-      <div className="absolute bottom-0 left-0 right-0 px-6 py-3 bg-slate-900/70 backdrop-blur border-t border-slate-700/50 flex items-center justify-between z-20">
-        <div className="text-slate-400 text-xs">
-          {allUnlocked
-            ? 'All markets unlocked. Click any district to trade.'
-            : unlockedAreas.length === 0
-            ? 'Welcome. Open the Library to learn about bonds and earn your first CHF.'
-            : `${ASSET_ORDER.length - unlockedAreas.length} market${ASSET_ORDER.length - unlockedAreas.length !== 1 ? 's' : ''} locked. Keep learning in the Library.`
-          }
+      {!adMode && (
+        <div className="absolute bottom-0 left-0 right-0 px-6 py-3 bg-slate-900/70 backdrop-blur border-t border-slate-700/50 flex items-center justify-between z-20">
+          <div className="text-slate-400 text-xs">
+            {allUnlocked
+              ? 'All markets unlocked. Click any district to trade.'
+              : unlockedAreas.length === 0
+              ? 'Welcome. Open the Library to learn about bonds and earn your first CHF.'
+              : `${ASSET_ORDER.length - unlockedAreas.length} market${ASSET_ORDER.length - unlockedAreas.length !== 1 ? 's' : ''} locked. Keep learning in the Library.`
+            }
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="flex gap-2">
+              {ASSET_ORDER.map(id => (
+                <div
+                  key={id}
+                  className={`w-2 h-2 rounded-full transition-all ${unlockedAreas.includes(id) ? 'bg-green-400' : 'bg-slate-700'}`}
+                  title={id}
+                />
+              ))}
+            </div>
+            <button
+              onClick={() => { setAdMode(true); setAdElapsed(0) }}
+              className="text-xs font-bold px-3 py-1 rounded-lg border transition-all"
+              style={{ background: '#FFD000', color: '#1a1200', borderColor: '#FFD000' }}
+              title="Launch 15-second ad mode (or press A)"
+            >
+              🎬 Ad
+            </button>
+          </div>
         </div>
-        <div className="flex gap-2">
-          {ASSET_ORDER.map(id => (
-            <div
-              key={id}
-              className={`w-2 h-2 rounded-full transition-all ${unlockedAreas.includes(id) ? 'bg-green-400' : 'bg-slate-700'}`}
-              title={id}
-            />
-          ))}
-        </div>
-      </div>
+      )}
 
-      <StreakModal streakData={streakData} onClose={() => { clearStreakData(); refreshUserData() }} />
-      <FireDrillModal fireDrill={fireDrill} onClose={() => setFireDrill(null)} />
+      {!adMode && <StreakModal streakData={streakData} onClose={() => { clearStreakData(); refreshUserData() }} />}
+      {!adMode && <FireDrillModal fireDrill={fireDrill} onClose={() => setFireDrill(null)} />}
 
-      {modal === 'library' && (
+      {!adMode && modal === 'library' && (
         <LibraryModal onClose={() => setModal(null)} unlockedAreas={unlockedAreas} onUnlock={handleUnlock} />
       )}
-      {modal?.market && (
+      {!adMode && modal?.market && (
         <MarketModal
           uid={user.uid}
           districtId={modal.market}
@@ -272,8 +421,8 @@ function CityApp() {
           onRefresh={refreshUserData}
         />
       )}
-      {modal === 'leaderboard' && <Leaderboard onClose={() => setModal(null)} />}
-      {modal === 'portfolio' && (
+      {!adMode && modal === 'leaderboard' && <Leaderboard onClose={() => setModal(null)} />}
+      {!adMode && modal === 'portfolio' && (
         <PortfolioModal
           onClose={() => setModal(null)}
           portfolio={portfolio}
@@ -281,7 +430,7 @@ function CityApp() {
           currentYear={currentYear}
         />
       )}
-      {modal === 'museum' && (
+      {!adMode && modal === 'museum' && (
         <MuseumModal
           onClose={() => setModal(null)}
           userData={userData}
@@ -292,7 +441,7 @@ function CityApp() {
           placedMonuments={placedMonuments}
         />
       )}
-      {modal === 'assetManager' && (
+      {!adMode && modal === 'assetManager' && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setModal(null)} />
           <div className="relative bg-slate-900 border border-amber-500/40 rounded-2xl p-8 max-w-sm w-full mx-4 text-center shadow-2xl">

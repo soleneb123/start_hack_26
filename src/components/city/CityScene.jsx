@@ -1,5 +1,5 @@
-import { useMemo, useRef } from 'react'
-import { useFrame } from '@react-three/fiber'
+import { useMemo, useRef, useEffect } from 'react'
+import { useFrame, useThree } from '@react-three/fiber'
 import { Html } from '@react-three/drei'
 import * as THREE from 'three'
 import { ASSET_ORDER } from '../../data/assetData'
@@ -1910,6 +1910,458 @@ const TREE_POS = [
   [-24, 0, -16], [24, 0, -16], [-24, 0, 16], [24, 0, 16],
 ]
 
+// ── Ad Mode ───────────────────────────────────────────────────────────────────
+
+// Roads with individual appear-times so they build up progressively
+const AD_ROADS = [
+  { s: ROADS_MAIN[0],      at: 0.25 }, // top horizontal row
+  { s: ROADS_MAIN[3],      at: 0.40 }, // left column
+  { s: ROADS_MAIN[4],      at: 0.55 }, // centre spine
+  { s: ROADS_MAIN[5],      at: 0.70 }, // right column
+  { s: ROADS_MAIN[1],      at: 0.90 }, // mid horizontal row
+  { s: ROADS_MAIN[2],      at: 1.15 }, // harbour row
+  { s: ROADS_SECONDARY[2], at: 1.8  },
+  { s: ROADS_SECONDARY[3], at: 2.2  },
+  { s: ROADS_SECONDARY[0], at: 2.6  },
+  { s: ROADS_SECONDARY[1], at: 3.0  },
+  { s: ROADS_TERTIARY[0],  at: 3.4  },
+  { s: ROADS_TERTIARY[2],  at: 3.7  },
+  { s: ROADS_TERTIARY[3],  at: 3.9  },
+  { s: ROADS_TERTIARY[1],  at: 4.1  },
+]
+
+// Road segment that grows outward from its centre (scale.z 0→1)
+function AdRoadSegment({ x1, z1, x2, z2, at, adTimeRef }) {
+  const groupRef = useRef()
+  const y = 0.018, rw = 1.7, dashLen = 1.1, gapLen = 1.0
+  const mx  = (x1 + x2) / 2, mz = (z1 + z2) / 2
+  const dx  = x2 - x1, dz = z2 - z1
+  const len = Math.sqrt(dx * dx + dz * dz)
+  const ang = Math.atan2(dx, dz)
+  const period = dashLen + gapLen
+  const count  = Math.floor(len / period)
+  const offset = -(count * period) / 2 + dashLen / 2
+  const dashes = Array.from({ length: count }, (_, d) => offset + d * period)
+
+  useFrame(() => {
+    if (!groupRef.current) return
+    const p = Math.min(1, Math.max(0, (adTimeRef.current - at) / 0.7))
+    groupRef.current.visible = p > 0
+    groupRef.current.scale.z = p   // stretches along road direction
+  })
+
+  return (
+    <group ref={groupRef} position={[mx, y, mz]} rotation={[0, ang, 0]}>
+      <mesh>
+        <boxGeometry args={[rw, 0.03, len + 0.1]} />
+        <meshLambertMaterial color="#1a1a1a" />
+      </mesh>
+      <group position={[0, 0.01, 0]}>
+        {dashes.map((off, di) => (
+          <mesh key={di} position={[0, 0, off]}>
+            <boxGeometry args={[0.1, 0.008, dashLen]} />
+            <meshBasicMaterial color="#ffffff" />
+          </mesh>
+        ))}
+      </group>
+    </group>
+  )
+}
+
+function AdOrganicPaths({ adTimeRef }) {
+  return (
+    <>
+      {AD_ROADS.map(({ s: [[x1, z1], [x2, z2]], at }, i) => (
+        <AdRoadSegment key={i} x1={x1} z1={z1} x2={x2} z2={z2} at={at} adTimeRef={adTimeRef} />
+      ))}
+    </>
+  )
+}
+
+// District reveal order and timing: district i appears at t = 2 + i * 0.5 seconds
+const AD_DISTRICT_ORDER = ['bonds', 'equityIndices', 'gold', 'smiStocks', 'singleStocks', 'fx']
+
+// When each district's buildings start shooting up (staggered for drama)
+const DISTRICT_GROW_START = {
+  bonds:         4.8,
+  gold:          5.2,
+  equityIndices: 5.6,
+  smiStocks:     6.0,
+  singleStocks:  6.4,
+  fx:            6.8,
+}
+
+// Per-building layout: [localX, localZ, shade, houseH, skyscraperH]
+const AD_BUILDING_PRESETS = [
+  [-7, -7, 0, 2.0, 30],
+  [ 0, -8, 1, 2.5, 43],
+  [ 7, -7, 2, 1.8, 36],
+  [-8,  0, 0, 2.2, 24],
+  [ 8,  0, 2, 2.0, 38],
+  [-7,  7, 1, 1.5, 28],
+  [ 0,  8, 0, 2.3, 46],
+  [ 7,  7, 2, 1.8, 32],
+]
+
+// Ticks the shared ad time ref every frame (no React state → no re-renders)
+function AdClock({ adTimeRef, adStartRef }) {
+  useFrame(({ clock }) => {
+    if (adStartRef.current === null) adStartRef.current = clock.getElapsedTime()
+    adTimeRef.current = Math.min(15, clock.getElapsedTime() - adStartRef.current)
+  })
+  return null
+}
+
+// Cinematic camera: slow orbit + descend, then dramatic zoom-out at the end
+function CameraRig({ adTimeRef }) {
+  const { camera } = useThree()
+  useFrame(() => {
+    const t     = adTimeRef.current
+    const angle = t * 0.055   // gentle ~50° arc over 15 s
+
+    let r, elevation
+    if (t < 10) {
+      r         = 74
+      elevation = Math.max(42, 62 - t * 1.6)   // descend 62 → ~46
+    } else {
+      // Zoom out over 2 s so the full skyline + monuments fit in frame
+      const p   = Math.min(1, (t - 10) / 2.5)
+      r         = 74  + (128 - 74)  * p
+      elevation = 46  + (88  - 46)  * p
+    }
+
+    camera.position.set(Math.sin(angle) * r, elevation, Math.cos(angle) * r)
+    camera.lookAt(0, 5, 0)
+  })
+  return null
+}
+
+// A single scripted building: shows a real house pre-growth, skyscraper after
+function AdAnimatedBuilding({ districtId, shade, adTimeRef, appearAt, growAt, houseH, skyscraperH, buildingIdx }) {
+  const houseRef     = useRef()
+  const skyRef       = useRef()
+  const currentScale = useRef(0)
+  const pctLabelRef  = useRef(null)
+
+  const fp    = 4.0
+  const parts = useMemo(
+    () => getBuildingParts(districtId, fp, fp, PARTS_H, shade, false, false, false),
+    [districtId, shade]
+  )
+
+  const color     = DISTRICT_CFG[districtId]?.color || '#888'
+  const roofColor = shadeColor(color, 0.55)
+
+  // Unique oscillation per building so they move independently
+  const oscFreq  = 0.50 + buildingIdx * 0.13 + shade * 0.21
+  const oscPhase = buildingIdx * 1.37 + shade * 0.94
+  const oscAmp   = skyscraperH * 0.18   // ±18 % swing
+
+  useFrame(({ clock }) => {
+    const t = adTimeRef.current
+    const houseVisible = t >= appearAt && t < growAt
+    const skyVisible   = t >= growAt
+
+    if (houseRef.current) houseRef.current.visible = houseVisible
+    if (!skyRef.current) return
+
+    if (!skyVisible) {
+      currentScale.current = 0
+      skyRef.current.scale.y = 0
+      skyRef.current.visible = false
+      return
+    }
+
+    skyRef.current.visible = true
+    const osc    = Math.sin(clock.getElapsedTime() * oscFreq + oscPhase) * oscAmp
+    const targetH = skyscraperH + osc
+    const grown   = currentScale.current >= skyscraperH / PARTS_H * 0.90
+    const speed   = !grown ? 0.11 : 0.04
+    currentScale.current += (Math.max(0.01, targetH / PARTS_H) - currentScale.current) * speed
+    skyRef.current.scale.y = Math.max(0, currentScale.current)
+
+    // Update % badge directly — no React re-render; hide in final overlay phase
+    if (pctLabelRef.current) {
+      const finalPhase = t >= 10.0
+      if (grown && !finalPhase) {
+        const pct = ((currentScale.current * PARTS_H - skyscraperH) / skyscraperH) * 100
+        const col = pct >= 0 ? '#4ade80' : '#f87171'
+        pctLabelRef.current.textContent       = `${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%`
+        pctLabelRef.current.style.color       = col
+        pctLabelRef.current.style.borderColor = col + '66'
+        pctLabelRef.current.style.opacity     = '1'
+      } else {
+        pctLabelRef.current.style.opacity = '0'
+      }
+    }
+  })
+
+  // House size varies per building for variety (small → medium)
+  const hs   = 0.58 + (buildingIdx % 4) * 0.11
+  const hw   = 3.0 * hs, hd = 3.0 * hs, wallH = 2.2 * hs
+
+  return (
+    <>
+      {/* ── House (visible before growAt) ── */}
+      <group ref={houseRef} visible={false}>
+        <mesh position={[0, wallH / 2, 0]} castShadow receiveShadow>
+          <boxGeometry args={[hw, wallH, hd]} />
+          <meshPhongMaterial color={color} shininess={10} />
+        </mesh>
+        <mesh position={[-hw * 0.265, wallH + 0.32 * hs, 0]} rotation={[0, 0, 0.52]} castShadow>
+          <boxGeometry args={[hw * 0.65, 0.17 * hs, hd + 0.3 * hs]} />
+          <meshPhongMaterial color={roofColor} shininess={4} />
+        </mesh>
+        <mesh position={[hw * 0.265, wallH + 0.32 * hs, 0]} rotation={[0, 0, -0.52]} castShadow>
+          <boxGeometry args={[hw * 0.65, 0.17 * hs, hd + 0.3 * hs]} />
+          <meshPhongMaterial color={roofColor} shininess={4} />
+        </mesh>
+        <mesh position={[0, 0.5 * hs, hd / 2 + 0.04]}>
+          <boxGeometry args={[0.65 * hs, 1.0 * hs, 0.07]} />
+          <meshLambertMaterial color="#5D4037" />
+        </mesh>
+      </group>
+
+      {/* ── Skyscraper (visible from growAt onwards, oscillates) ── */}
+      <group ref={skyRef} visible={false}>
+        <ThemeBuilding parts={parts} />
+        <Html position={[0, PARTS_H + 0.8, 0]} center distanceFactor={22}>
+          <div
+            ref={pctLabelRef}
+            style={{
+              background: '#0f172AEE', color: '#4ade80',
+              padding: '4px 10px', borderRadius: 8,
+              fontSize: 22, fontWeight: 800, whiteSpace: 'nowrap',
+              pointerEvents: 'none', border: '1.5px solid #4ade8066',
+              textShadow: '0 0 8px rgba(74,222,128,0.6)',
+              opacity: 0, transition: 'opacity 0.4s',
+            }}
+          />
+        </Html>
+      </group>
+    </>
+  )
+}
+
+// ── Fireworks ─────────────────────────────────────────────────────────────────
+const N_PARTICLES = 28
+
+const FIREWORK_DATA = [
+  { x: -24, z: -18, at: 10.3, color: '#FFD000', burstY: 46 },
+  { x:  20, z: -12, at: 10.7, color: '#4ade80', burstY: 52 },
+  { x:   2, z:  14, at: 11.0, color: '#60a5fa', burstY: 44 },
+  { x: -12, z:  20, at: 11.4, color: '#f472b6', burstY: 50 },
+  { x:  26, z:   4, at: 11.7, color: '#FFD000', burstY: 48 },
+  { x:  -4, z: -26, at: 12.0, color: '#fb923c', burstY: 54 },
+]
+
+function AdFireworkBurst({ x, z, at, color, burstY, adTimeRef }) {
+  const groupRef      = useRef()
+  const rocketRef     = useRef()
+  const particleRefs  = useRef([])
+
+  // Deterministic spherical burst velocities
+  const velocities = useMemo(() =>
+    Array.from({ length: N_PARTICLES }, (_, i) => {
+      const theta    = (i / N_PARTICLES) * Math.PI * 2
+      const phi      = Math.acos(1 - 2 * (i + 0.5) / N_PARTICLES)
+      const speed    = 0.16 + (i % 4) * 0.04
+      return {
+        vx: Math.sin(phi) * Math.cos(theta) * speed,
+        vy: Math.abs(Math.cos(phi)) * speed + 0.06,   // bias upward
+        vz: Math.sin(phi) * Math.sin(theta) * speed,
+      }
+    }), []
+  )
+
+  useFrame(() => {
+    if (!groupRef.current) return
+    const t       = adTimeRef.current
+    const elapsed = t - at
+
+    if (elapsed < 0) { groupRef.current.visible = false; return }
+    groupRef.current.visible = true
+
+    if (elapsed < 0.7) {
+      // Rising rocket
+      if (rocketRef.current) {
+        rocketRef.current.visible = true
+        rocketRef.current.position.set(0, (elapsed / 0.7) * burstY, 0)
+      }
+      particleRefs.current.forEach(r => { if (r) r.visible = false })
+    } else {
+      // Explosion
+      if (rocketRef.current) rocketRef.current.visible = false
+      const bt   = elapsed - 0.7
+      const fade = Math.max(0, 1 - bt / 2.2)
+      particleRefs.current.forEach((r, i) => {
+        if (!r) return
+        if (fade <= 0) { r.visible = false; return }
+        r.visible = true
+        r.scale.setScalar(fade * 0.6)
+        r.position.set(
+          velocities[i].vx * bt * 32,
+          burstY + velocities[i].vy * bt * 32 - 4.9 * bt * bt,
+          velocities[i].vz * bt * 32,
+        )
+      })
+    }
+  })
+
+  return (
+    <group ref={groupRef} position={[x, 0, z]} visible={false}>
+      <mesh ref={rocketRef} visible={false}>
+        <sphereGeometry args={[0.35, 5, 5]} />
+        <meshBasicMaterial color={color} />
+      </mesh>
+      {Array.from({ length: N_PARTICLES }, (_, i) => (
+        <mesh key={i} ref={el => { particleRefs.current[i] = el }}>
+          <sphereGeometry args={[0.55, 5, 5]} />
+          <meshBasicMaterial color={color} />
+        </mesh>
+      ))}
+    </group>
+  )
+}
+
+function AdFireworks({ adTimeRef }) {
+  return (
+    <>
+      {FIREWORK_DATA.map((fw, i) => (
+        <AdFireworkBurst key={i} {...fw} adTimeRef={adTimeRef} />
+      ))}
+    </>
+  )
+}
+
+// ── Floating return-% labels ───────────────────────────────────────────────────
+const RETURN_LABELS = [
+  { pos: [-28, 32, -10], text: '+21.9%', color: '#4ade80', at: 10.5 },
+  { pos: [  22, 36, -8], text: '+38.5%', color: '#4ade80', at: 10.8 },
+  { pos: [ -8, 28,  18], text: '+9.3%',  color: '#4ade80', at: 11.0 },
+  { pos: [ 30, 40,   8], text: '+156%',  color: '#FFD000', at: 11.2 },
+  { pos: [-18, 44, -22], text: '-12.4%', color: '#f87171', at: 11.4 },
+  { pos: [  5, 30,  28], text: '+64.2%', color: '#4ade80', at: 11.6 },
+  { pos: [-32, 38,  10], text: '+15.3%', color: '#4ade80', at: 11.8 },
+  { pos: [ 15, 34, -28], text: '+203%',  color: '#FFD000', at: 12.0 },
+]
+
+function AdReturnLabel({ pos, text, color, at, adTimeRef }) {
+  const groupRef  = useRef()
+  const labelRef  = useRef()
+
+  useFrame(() => {
+    if (!groupRef.current) return
+    const elapsed = adTimeRef.current - at
+    const visible = elapsed > 0
+    groupRef.current.visible = visible
+    if (labelRef.current) labelRef.current.style.opacity = visible ? '1' : '0'
+    if (visible) {
+      groupRef.current.position.set(pos[0], pos[1] + elapsed * 2.5, pos[2])
+    }
+  })
+
+  return (
+    <group ref={groupRef} position={pos} visible={false}>
+      <Html center distanceFactor={90}>
+        <div ref={labelRef} style={{
+          color, fontWeight: 900, fontSize: 26, opacity: 0,
+          textShadow: `0 0 14px ${color}, 0 0 4px rgba(0,0,0,0.9)`,
+          whiteSpace: 'nowrap', pointerEvents: 'none',
+          fontFamily: 'Arial Black, Impact, sans-serif',
+          transition: 'opacity 0.3s',
+        }}>
+          {text}
+        </div>
+      </Html>
+    </group>
+  )
+}
+
+function AdReturnLabels({ adTimeRef }) {
+  return (
+    <>
+      {RETURN_LABELS.map((l, i) => (
+        <AdReturnLabel key={i} {...l} adTimeRef={adTimeRef} />
+      ))}
+    </>
+  )
+}
+
+// Big Ben + Yacht appear during the final zoom-out
+function AdMonuments({ adTimeRef }) {
+  const groupRef = useRef()
+  useFrame(() => {
+    if (!groupRef.current) return
+    groupRef.current.visible = adTimeRef.current >= 10.0
+  })
+  return (
+    <group ref={groupRef} visible={false}>
+      <group position={[-38, 0, -43]}><BigBen /></group>
+      <group position={[0, -0.5, 56]}><Yacht /></group>
+    </group>
+  )
+}
+
+// One district in ad mode: temple + scripted buildings, shown/hidden by time
+function AdDistrict({ id, adTimeRef }) {
+  const cfg       = DISTRICT_CFG[id]
+  const position  = DISTRICT_POSITIONS[id]
+  const distIdx   = AD_DISTRICT_ORDER.indexOf(id)
+  const appearAt  = 1.0 + distIdx * 0.35
+  const groupRef  = useRef()
+  const pillRef   = useRef()   // district name pill — hidden in final phase
+
+  useFrame(() => {
+    if (!groupRef.current) return
+    const t = adTimeRef.current
+    groupRef.current.visible = t >= appearAt
+    // Hide the district name pill once the final overlay takes over
+    if (pillRef.current) pillRef.current.style.display = t >= 10.0 ? 'none' : 'block'
+  })
+
+  return (
+    <group ref={groupRef} position={position} visible={false}>
+      {/* Coloured ground patch */}
+      <mesh position={[0, -0.03, 0]} receiveShadow>
+        <boxGeometry args={[HOOD + 0.5, 0.04, HOOD + 0.5]} />
+        <meshLambertMaterial color={cfg.color} transparent opacity={0.16} />
+      </mesh>
+
+      {/* Exchange temple */}
+      <DistrictTemple color={cfg.color} isLocked={false} />
+
+      {/* District label — hidden after t=12 */}
+      <Html position={[0, 6, 0]} center distanceFactor={38} occlude={false}>
+        <div ref={pillRef} style={{
+          background: `${cfg.color}CC`, color: 'white',
+          padding: '3px 9px', borderRadius: 7,
+          fontSize: 13, fontWeight: 700, whiteSpace: 'nowrap',
+          pointerEvents: 'none', border: `1px solid ${cfg.color}88`,
+        }}>
+          {cfg.icon} {cfg.label}
+        </div>
+      </Html>
+
+      {/* Scripted portfolio buildings — each one staggers 0.25 s after the district's grow start */}
+      {AD_BUILDING_PRESETS.map(([bx, bz, shade, houseH, skyscraperH], i) => (
+        <group key={i} position={[bx, 0, bz]}>
+          <AdAnimatedBuilding
+            districtId={id}
+            shade={shade}
+            adTimeRef={adTimeRef}
+            appearAt={appearAt + 0.15}
+            growAt={DISTRICT_GROW_START[id] + i * 0.18}
+            houseH={houseH}
+            skyscraperH={skyscraperH}
+            buildingIdx={i}
+          />
+        </group>
+      ))}
+    </group>
+  )
+}
+
 // ── Main scene ────────────────────────────────────────────────────────────────
 export default function CityScene({
   unlockedAreas, cash, portfolio = {}, currentYear = 2007,
@@ -1917,8 +2369,16 @@ export default function CityScene({
   hovered, setHovered, showLabels = true, showDistrictLabels = false,
   assetManagerUnlocked = false, fireDrillBurning, fireDrillPhase, onStockSelect,
   placingMonument = null, placedMonuments = [], onMonumentPlaced,
+  adMode = false,
 }) {
   const PH = PLATFORM_HALF
+
+  // Ad mode timing refs (updated each frame by AdClock, no React re-renders)
+  const adTimeRef  = useRef(0)
+  const adStartRef = useRef(null)
+  useEffect(() => {
+    if (adMode) { adStartRef.current = null; adTimeRef.current = 0 }
+  }, [adMode])
 
   // Diversification score: fraction of districts that have at least one holding (0–1)
   const diversification = useMemo(() => {
@@ -1950,95 +2410,109 @@ export default function CityScene({
       {/* Harbour + water */}
       <Harbour />
 
-      {/* Organic winding paths between districts */}
-      <OrganicPaths unlockedCount={unlockedAreas.length} />
+      {/* ── Ad mode: scripted cinematic sequence ── */}
+      {adMode ? (
+        <>
+          <AdClock adTimeRef={adTimeRef} adStartRef={adStartRef} />
+          <CameraRig adTimeRef={adTimeRef} />
+          <AdOrganicPaths adTimeRef={adTimeRef} />
+          {TREE_POS.map((pos, i) => (
+            <Tree key={i} position={pos} scale={0.9 + (i % 3) * 0.12} />
+          ))}
+          {AD_DISTRICT_ORDER.map(id => (
+            <AdDistrict key={id} id={id} adTimeRef={adTimeRef} />
+          ))}
+          <AdMonuments adTimeRef={adTimeRef} />
+          <AdFireworks adTimeRef={adTimeRef} />
+          <AdReturnLabels adTimeRef={adTimeRef} />
+          <PostFinanceHQ onClick={() => {}} onHover={() => {}} isHovered={false} showLabels={false} />
+          <QuizAcademy   onClick={() => {}} onHover={() => {}} isHovered={false} showLabels={false} />
+        </>
+      ) : (
+        <>
+          {/* ── Normal game mode ── */}
+          <OrganicPaths unlockedCount={unlockedAreas.length} />
 
-      {/* Trees */}
-      {TREE_POS.map((pos, i) => (
-        <Tree key={i} position={pos} scale={0.9 + (i % 3) * 0.12} />
-      ))}
+          {TREE_POS.map((pos, i) => (
+            <Tree key={i} position={pos} scale={0.9 + (i % 3) * 0.12} />
+          ))}
 
-      {/* Districts */}
-      {ASSET_ORDER.map(id => (
-        <Neighbourhood
-          key={id}
-          id={id}
-          portfolio={portfolio}
-          currentYear={currentYear}
-          unlockedAreas={unlockedAreas}
-          onClick={onAreaClick}
-          onHover={setHovered}
-          isHovered={hovered === id}
-          showLabels={showLabels}
-          showDistrictLabels={showDistrictLabels}
-          diversification={diversification}
-          fireDrillBurning={fireDrillBurning}
-          fireDrillPhase={fireDrillPhase}
-          onStockSelect={onStockSelect}
-          isFinished={currentYear >= GAME_END_YEAR}
-        />
-      ))}
+          {ASSET_ORDER.map(id => (
+            <Neighbourhood
+              key={id}
+              id={id}
+              portfolio={portfolio}
+              currentYear={currentYear}
+              unlockedAreas={unlockedAreas}
+              onClick={onAreaClick}
+              onHover={setHovered}
+              isHovered={hovered === id}
+              showLabels={showLabels}
+              showDistrictLabels={showDistrictLabels}
+              diversification={diversification}
+              fireDrillBurning={fireDrillBurning}
+              fireDrillPhase={fireDrillPhase}
+              onStockSelect={onStockSelect}
+              isFinished={currentYear >= GAME_END_YEAR}
+            />
+          ))}
 
-      {/* PostFinance HQ — click to open portfolio summary */}
-      <PostFinanceHQ
-        onClick={onPortfolioClick}
-        onHover={setHovered}
-        isHovered={hovered === 'library'}
-        showLabels={showLabels}
-      />
+          <PostFinanceHQ
+            onClick={onPortfolioClick}
+            onHover={setHovered}
+            isHovered={hovered === 'library'}
+            showLabels={showLabels}
+          />
 
-      {/* Library — opens library/quiz modal */}
-      <QuizAcademy
-        onClick={onLibraryClick}
-        onHover={setHovered}
-        isHovered={hovered === 'academy'}
-        showLabels={showLabels}
-      />
+          <QuizAcademy
+            onClick={onLibraryClick}
+            onHover={setHovered}
+            isHovered={hovered === 'academy'}
+            showLabels={showLabels}
+          />
 
-      {/* Museum — trophies & achievements */}
-      <MuseumBuilding
-        onClick={onMuseumClick}
-        onHover={setHovered}
-        isHovered={hovered === 'museum'}
-        showLabels={showLabels}
-      />
+          <MuseumBuilding
+            onClick={onMuseumClick}
+            onHover={setHovered}
+            isHovered={hovered === 'museum'}
+            showLabels={showLabels}
+          />
 
-      {/* Asset Manager Zone (Eiffel Tower — unlocks at 5-day streak) */}
-      <AssetManagerZone unlocked={assetManagerUnlocked} showLabels={showLabels} onClick={onLibraryClick} />
+          <AssetManagerZone unlocked={assetManagerUnlocked} showLabels={showLabels} onClick={onLibraryClick} />
 
-      {/* Placed monuments */}
-      {placedMonuments.map((m, i) => {
-        if (!m) return null
-        const [mx, my, mz] = m.pos
-        return (
-          <group key={i} position={[mx, my ?? 0, mz]} frustumCulled={false}>
-            {m.type === 'eiffelTower' && <EiffelTower unlocked />}
-            {m.type === 'bigBen' && <BigBen />}
-            {m.type === 'yacht' && <Yacht />}
-            {showLabels && (
-              <Html position={[0, 14, 0]} center distanceFactor={85}>
-                <div style={{
-                  background: '#0f172aEE', color: '#FFD700',
-                  padding: '3px 10px', borderRadius: 7, fontSize: 12,
-                  fontWeight: 700, whiteSpace: 'nowrap', pointerEvents: 'none',
-                  border: '1px solid #FFD70066',
-                }}>
-                  {m.type === 'eiffelTower' ? '🗼 Eiffel Tower' : m.type === 'bigBen' ? '🕰️ Big Ben' : '⛵ Yacht'}
-                </div>
-              </Html>
-            )}
-          </group>
-        )
-      })}
+          {placedMonuments.map((m, i) => {
+            if (!m) return null
+            const [mx, my, mz] = m.pos
+            return (
+              <group key={i} position={[mx, my ?? 0, mz]} frustumCulled={false}>
+                {m.type === 'eiffelTower' && <EiffelTower unlocked />}
+                {m.type === 'bigBen' && <BigBen />}
+                {m.type === 'yacht' && <Yacht />}
+                {showLabels && (
+                  <Html position={[0, 14, 0]} center distanceFactor={85}>
+                    <div style={{
+                      background: '#0f172aEE', color: '#FFD700',
+                      padding: '3px 10px', borderRadius: 7, fontSize: 12,
+                      fontWeight: 700, whiteSpace: 'nowrap', pointerEvents: 'none',
+                      border: '1px solid #FFD70066',
+                    }}>
+                      {m.type === 'eiffelTower' ? '🗼 Eiffel Tower' : m.type === 'bigBen' ? '🕰️ Big Ben' : '⛵ Yacht'}
+                    </div>
+                  </Html>
+                )}
+              </group>
+            )
+          })}
 
-      {/* Monument placement spots */}
-      {placingMonument && (placingMonument === 'yacht' ? YACHT_SPOTS : MONUMENT_SPOTS).filter(s => !placedMonuments.some(m => m && JSON.stringify(m.pos) === JSON.stringify(s.pos))).map(spot => (
-        <PlacementSpot
-          key={spot.id}
-          position={spot.pos}
-          onPlace={(pos) => onMonumentPlaced?.(pos)}
-        />
-      ))}
+          {placingMonument && (placingMonument === 'yacht' ? YACHT_SPOTS : MONUMENT_SPOTS).filter(s => !placedMonuments.some(m => m && JSON.stringify(m.pos) === JSON.stringify(s.pos))).map(spot => (
+            <PlacementSpot
+              key={spot.id}
+              position={spot.pos}
+              onPlace={(pos) => onMonumentPlaced?.(pos)}
+            />
+          ))}
+        </>
+      )}
     </>
   )
 }

@@ -122,6 +122,7 @@ export default function CityMap({
   onAreaClick, onLibraryClick, onPortfolioClick, onMuseumClick,
   showLabels = true, assetManagerUnlocked = false, fireDrillBurning, fireDrillPhase,
   placingMonument = null, placedMonuments = [], onMonumentPlaced,
+  adMode = false,
 }) {
   const [hovered, setHovered]             = useState(null)
   const [selectedStock, setSelectedStock] = useState(null) // { instId, name }
@@ -140,6 +141,7 @@ export default function CityMap({
       <Canvas shadows>
         <PerspectiveCamera makeDefault position={[0, 62, 56]} fov={44} />
         <OrbitControls
+          enabled={!adMode}
           target={[0, 2, 0]}
           minDistance={22}
           maxDistance={320}
@@ -179,6 +181,7 @@ export default function CityMap({
           placingMonument={placingMonument}
           placedMonuments={placedMonuments}
           onMonumentPlaced={onMonumentPlaced}
+          adMode={adMode}
         />
       </Canvas>
 
@@ -188,7 +191,7 @@ export default function CityMap({
       )}
 
       {/* Stock chart — 2D overlay, always works regardless of 3D scene */}
-      {selectedStock && (
+      {!adMode && selectedStock && (
         <StockChartPanel
           instId={selectedStock.instId}
           name={selectedStock.name}
@@ -198,28 +201,32 @@ export default function CityMap({
       )}
 
       {/* District label toggle button */}
-      <button
-        onClick={() => setShowDistrictLabels(p => !p)}
-        className={`absolute top-3 left-3 z-20 px-3 py-1.5 rounded-lg text-sm font-bold border transition-all shadow ${
-          showDistrictLabels
-            ? 'bg-white text-slate-900 border-white'
-            : 'bg-black/40 text-white border-white/30 hover:bg-black/60'
-        }`}
-      >
-        {showDistrictLabels ? 'Hide Labels' : 'Show Labels'}
-      </button>
+      {!adMode && (
+        <button
+          onClick={() => setShowDistrictLabels(p => !p)}
+          className={`absolute top-3 left-3 z-20 px-3 py-1.5 rounded-lg text-sm font-bold border transition-all shadow ${
+            showDistrictLabels
+              ? 'bg-white text-slate-900 border-white'
+              : 'bg-black/40 text-white border-white/30 hover:bg-black/60'
+          }`}
+        >
+          {showDistrictLabels ? 'Hide Labels' : 'Show Labels'}
+        </button>
+      )}
 
       {/* Placement mode banner */}
-      {placingMonument && (
+      {!adMode && placingMonument && (
         <div className="absolute top-3 left-1/2 -translate-x-1/2 z-20 bg-amber-600/95 text-white text-sm font-bold px-5 py-2 rounded-xl border border-amber-400 shadow-lg pointer-events-none">
           {placingMonument === 'eiffelTower' ? 'Eiffel Tower' : placingMonument === 'bigBen' ? 'Big Ben' : 'Yacht'} — Click a golden ring to place
         </div>
       )}
 
       {/* Controls hint */}
-      <div className="absolute bottom-14 right-3 z-20 text-xs text-slate-200 bg-black/40 rounded-lg px-2 py-1 pointer-events-none select-none">
-        Left drag: rotate · Right drag: pan · Scroll: zoom · Click building for chart
-      </div>
+      {!adMode && (
+        <div className="absolute bottom-14 right-3 z-20 text-xs text-slate-200 bg-black/40 rounded-lg px-2 py-1 pointer-events-none select-none">
+          Left drag: rotate · Right drag: pan · Scroll: zoom · Click building for chart
+        </div>
+      )}
     </div>
   )
 }
