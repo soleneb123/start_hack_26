@@ -1,13 +1,19 @@
 {
-  "name": "andriy_city_test",
+  "name": "start_hack_26",
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
+
+  "homepage": "https://soleneb123.github.io/start_hack_26/",
+
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "predeploy": "npm run build",
+    "deploy": "gh-pages -d dist"
   },
+
   "keywords": [],
   "author": "",
   "license": "ISC",
@@ -25,6 +31,7 @@
   "devDependencies": {
     "@tailwindcss/vite": "^4.2.2",
     "@vitejs/plugin-react": "^6.0.1",
+    "gh-pages": "^6.3.0",
     "tailwindcss": "^4.2.2",
     "vite": "^8.0.0"
   }
